@@ -12,6 +12,7 @@ import {
   Users,
   UserCog,
   PartyPopper,
+  Sparkles,
   Plus,
   ChevronLeft,
   AppWindow,
@@ -22,7 +23,7 @@ import {
 import { Button, Card, Input, Label, Select, Badge, Spinner } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { DAY_NAMES, SLOT_MIN, fmtMin, validateDayBounds } from "@/lib/schedule/slots";
-import { updateSettings } from "@/actions/admin-settings";
+import { updateSettings, setAnthropicKey } from "@/actions/admin-settings";
 import { upsertRoom, setAvailabilityWindows } from "@/actions/admin-rooms";
 import { createStaffUser, updateStaffUser } from "@/actions/admin-users";
 import { completeSetup } from "@/actions/setup";
@@ -38,6 +39,7 @@ const STEPS = [
   { icon: Clock, title: "שעות פעילות" },
   { icon: DoorOpen, title: "חדרים" },
   { icon: Users, title: "אנשי צוות" },
+  { icon: Sparkles, title: "עוזר חכם (רשות)" },
   { icon: UserCog, title: "החשבון שלך" },
   { icon: PartyPopper, title: "סיום" },
 ] as const;
@@ -80,11 +82,28 @@ export function SetupWizard({
   const [staffPassword, setStaffPassword] = useState("");
   const [staffTier, setStaffTier] = useState<"staff" | "intern" | "student">("staff");
 
+  // optional AI key
+  const [aiKey, setAiKey] = useState("");
+  const [aiKeySaved, setAiKeySaved] = useState(false);
+
   // admin account
   const [adminName, setAdminName] = useState(admin.name);
   const [adminUsername, setAdminUsername] = useState(admin.username);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+
+  function saveAiKeyAnd(next: number) {
+    startTransition(async () => {
+      const res = await setAnthropicKey(aiKey);
+      if ("error" in res && res.error) {
+        toast.error(res.error);
+        return;
+      }
+      setAiKeySaved(true);
+      toast.success("המפתח נשמר — העוזר החכם פעיל");
+      setStep(next);
+    });
+  }
 
   function toggleDay(d: number) {
     setActiveDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()));
@@ -509,6 +528,59 @@ export function SetupWizard({
         {step === 6 && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
+              המערכת כוללת עוזר חכם לניהול (צ'אט שמכיר את הלוח ומציע שיבוצים)
+              והבנת היעדרויות בשפה חופשית — מבוסס Claude. <b>המערכת עובדת מצוין
+              גם בלי זה</b>, ואפשר להוסיף בכל שלב מההגדרות.
+            </p>
+            <div className="rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground">
+              💰 זה החלק היחיד בתשלום — אך מזערי: ‎~0.2–0.5 ₪ לשאלה לעוזר,
+              שקלים בודדים בחודש טיפוסי. מומלץ להגדיר תקרת הוצאה ב-Billing.
+            </div>
+            {aiKeySaved ? (
+              <p className="rounded-xl bg-accent/20 p-3 text-sm">המפתח נשמר — העוזר החכם פעיל ✔</p>
+            ) : (
+              <>
+                <ol className="list-decimal space-y-1 ps-5 text-sm text-muted-foreground">
+                  <li>פתחו חשבון ב-<span dir="ltr">console.anthropic.com</span></li>
+                  <li>הוסיפו אמצעי תשלום (Billing)</li>
+                  <li>ב-API Keys צרו מפתח והדביקו אותו כאן:</li>
+                </ol>
+                <Input
+                  dir="ltr"
+                  value={aiKey}
+                  onChange={(e) => setAiKey(e.target.value)}
+                  placeholder="sk-ant-..."
+                  className="text-xs"
+                />
+              </>
+            )}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep(5)}>
+                חזרה
+              </Button>
+              {aiKeySaved ? (
+                <Button className="flex-1" onClick={() => setStep(7)}>המשך</Button>
+              ) : (
+                <>
+                  <Button
+                    className="flex-1"
+                    disabled={pending || !aiKey.trim().startsWith("sk-ant-")}
+                    onClick={() => saveAiKeyAnd(7)}
+                  >
+                    {pending ? <Spinner /> : "שמירה והמשך"}
+                  </Button>
+                  <Button variant="outline" className="flex-1" disabled={pending} onClick={() => setStep(7)}>
+                    דילוג — אולי אחר כך
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {step === 7 && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
               עדכנו את חשבון הניהול שלכם — השם שיוצג בלוחות ושם המשתמש להתחברות.
             </p>
             <div>
@@ -533,17 +605,17 @@ export function SetupWizard({
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(5)}>
+              <Button variant="outline" onClick={() => setStep(6)}>
                 חזרה
               </Button>
-              <Button className="flex-1" disabled={pending || adminName.trim().length < 2 || adminUsername.trim().length < 2} onClick={() => saveAdminAnd(7)}>
+              <Button className="flex-1" disabled={pending || adminName.trim().length < 2 || adminUsername.trim().length < 2} onClick={() => saveAdminAnd(8)}>
                 {pending ? <Spinner /> : "שמירה והמשך"}
               </Button>
             </div>
           </div>
         )}
 
-        {step === 7 && (
+        {step === 8 && (
           <div className="space-y-3">
             <p className="text-sm">
               הכול מוכן! סיכום ההגדרה:
@@ -554,12 +626,13 @@ export function SetupWizard({
               <li>🕐 שעות: {fmtMin(dayStartMin)}–{fmtMin(dayEndMin)}</li>
               <li>🚪 חדרים: {rooms.length > 0 ? rooms.map((r) => r.name).join(", ") : "יתווספו אחר כך"}</li>
               <li>👥 צוות: {staff.length > 0 ? `${staff.length} נוספו` : "יתווספו אחר כך"}</li>
+              <li>🤖 עוזר חכם: {aiKeySaved ? "פעיל" : "לא הוגדר (אפשר להוסיף בהגדרות)"}</li>
             </ul>
             <p className="text-xs text-muted-foreground">
               את כל ההגדרות אפשר לשנות בכל רגע במסכי הניהול. בהצלחה!
             </p>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(6)}>
+              <Button variant="outline" onClick={() => setStep(7)}>
                 חזרה
               </Button>
               <Button className="flex-1" disabled={pending} onClick={finish}>
