@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מדריך התקנה — מערכת ניהול חדרי טיפול</title>
+<style>
+  :root {
+    --primary: #0d9488;
+    --primary-dark: #0f766e;
+    --bg: #faf9f7;
+    --card: #ffffff;
+    --text: #1c1917;
+    --muted: #78716c;
+    --border: #e7e5e4;
+    --amber-bg: #fffbeb;
+    --amber-border: #fcd34d;
+    --amber-text: #92400e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 16px 80px;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.7;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  header {
+    text-align: center; padding: 36px 0 20px;
+  }
+  header .logo {
+    width: 56px; height: 56px; border-radius: 18px; background: var(--primary);
+    color: #fff; font-size: 28px; display: inline-flex; align-items: center; justify-content: center;
+  }
+  h1 { font-size: 26px; margin: 12px 0 4px; }
+  header p { color: var(--muted); margin: 0; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 20px 22px; margin: 16px 0;
+  }
+  .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 30px; height: 30px; border-radius: 10px; background: var(--primary);
+    color: #fff; font-weight: 700; margin-inline-end: 8px; font-size: 15px;
+  }
+  h2 { font-size: 19px; margin: 0 0 10px; display: flex; align-items: center; }
+  h3 { font-size: 15px; margin: 16px 0 6px; }
+  ol, ul { padding-inline-start: 22px; margin: 8px 0; }
+  li { margin: 4px 0; }
+  code, .console {
+    direction: ltr; unicode-bidi: embed; font-family: Consolas, monospace;
+    background: #f5f5f4; border: 1px solid var(--border); border-radius: 6px;
+    padding: 1px 6px; font-size: 13.5px;
+  }
+  .console-block {
+    direction: ltr; text-align: left; font-family: Consolas, monospace;
+    background: #1c1917; color: #4ade80; border-radius: 10px;
+    padding: 10px 14px; font-size: 13.5px; margin: 10px 0; overflow-x: auto;
+  }
+  .console-block .dim { color: #a8a29e; }
+  a { color: var(--primary-dark); font-weight: 600; }
+  .tip {
+    background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 10px;
+    padding: 10px 14px; font-size: 14px; margin: 10px 0;
+  }
+  .warn {
+    background: var(--amber-bg); border: 1px solid var(--amber-border); border-radius: 10px;
+    padding: 10px 14px; font-size: 14px; margin: 10px 0; color: var(--amber-text);
+  }
+  .terms { border: 2px solid var(--primary); }
+  .terms p { margin: 8px 0; }
+  nav.toc {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 14px 20px; margin: 16px 0; font-size: 14px;
+  }
+  nav.toc a { display: inline-block; margin: 2px 10px 2px 0; font-weight: 500; }
+  .badge {
+    font-size: 12px; background: #ede9fe; color: #6d28d9; border-radius: 999px;
+    padding: 1px 10px; font-weight: 600; vertical-align: middle; margin-inline-start: 6px;
+  }
+  .kbd {
+    direction: ltr; unicode-bidi: embed; display: inline-block; border: 1px solid var(--border);
+    border-bottom-width: 2px; border-radius: 5px; background: #fff; padding: 0 6px;
+    font-family: Consolas, monospace; font-size: 13px;
+  }
+  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 32px; }
+  @media print { nav.toc { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="logo">🏥</div>
+  <h1>מדריך התקנה — מערכת ניהול חדרי טיפול</h1>
+  <p>השאירו את הדף הזה פתוח לצד החלון השחור — הוא מלווה אתכם שלב-שלב.</p>
+</header>
+
+<div class="tip">
+  💡 <b>איך זה עובד:</b> החלון השחור (שורת הפקודה) מציג באנגלית פשוטה את מספר השלב,
+  למשל <code>STEP 3</code> — וכאן בדף מוצא לו הסבר מלא בעברית עם אותו מספר.
+  בחלון השחור רק מדביקים ערכים ומקישים Enter.
+</div>
+
+<nav class="toc">
+  <b>קפיצה לשלב:</b>
+  <a href="#terms">תנאי שימוש</a>
+  <a href="#step3">3 מסד נתונים</a>
+  <a href="#step5">5 בינה מלאכותית</a>
+  <a href="#step6">6 התראות</a>
+  <a href="#step8">8 חשבון ניהול</a>
+  <a href="#step9">9 בדיקה מקומית</a>
+  <a href="#step10">10 GitHub</a>
+  <a href="#step11">11 Vercel</a>
+  <a href="#step12">12 גיבוי יומי</a>
+  <a href="#after">אחרי ההתקנה</a>
+  <a href="#trouble">פתרון תקלות</a>
+</nav>
+
+<div class="card terms" id="terms">
+  <h2><span class="step-num">1</span>לפני שמתחילים — תנאי שימוש 💙</h2>
+  <p>המערכת הזו נבנתה <b>בהתנדבות, כשירות לציבור</b> — ללא כל מטרה מסחרית.</p>
+  <p>היא לא נכתבה על ידי מתכנתים מקצועיים, אלא בעזרת <b>כלי בינה מלאכותית</b>,
+     תוך שימת דגש רב על אבטחת מידע ופרטיות.</p>
+  <p>עם זאת, המערכת מסופקת <b>כמות-שהיא (As-Is), ללא אחריות מכל סוג</b> —
+     לא לתקלות, לא לאובדן מידע, ולא לכל נזק או סוגיה שתעלה מהשימוש בה.</p>
+  <p>האחריות המלאה על ההתקנה, הנתונים והשימוש — על המתקין והמפעיל בלבד.
+     מומלץ מאוד להפעיל את הגיבוי היומי המובנה (שלב 12).</p>
+  <div class="warn">✍️ אם קראתם ואתם מסכימים — הקלידו בחלון השחור <span class="kbd">agree</span> והקישו Enter.</div>
+</div>
+
+<div class="card" id="step2">
+  <h2><span class="step-num">2</span>התקנת רכיבי תוכנה <span class="badge">אוטומטי</span></h2>
+  <p>המערכת מורידה את הרכיבים שהיא צריכה. אין מה לעשות — רק לחכות כמה דקות.
+     ייתכן שהמסך יתמלא בשורות טקסט רצות — זה תקין.</p>
+</div>
+
+<div class="card" id="step3">
+  <h2><span class="step-num">3</span>מסד נתונים — Neon <span class="badge">חינם</span></h2>
+  <p>כל הנתונים (חדרים, שיבוצים, משתמשים) נשמרים במסד נתונים בענן של Neon.</p>
+  <ol>
+    <li>גלשו אל <a href="https://neon.tech" target="_blank">neon.tech</a> ולחצו <b>Sign Up</b> → התחברו עם חשבון Google (הכי פשוט).</li>
+    <li>לחצו <b>New Project</b> ומלאו:
+      <ul>
+        <li>Project name: <code>clinic-rooms</code> (או כל שם)</li>
+        <li>Region: <b>AWS Europe (Frankfurt)</b> — הקרוב לישראל</li>
+      </ul>
+    </li>
+    <li>אחרי היצירה מופיע מסך <b>Connect to your database</b>. ודאו שמסומן <b>Pooled connection</b>.</li>
+    <li>לחצו על כפתור ההעתקה ליד כתובת החיבור — שורה ארוכה שמתחילה ב-<code>postgresql://</code></li>
+    <li>עברו לחלון השחור, הדביקו (קליק ימני על החלון = הדבקה) והקישו Enter.</li>
+  </ol>
+  <div class="tip">💾 שמרו את פרטי ההתחברות לאתר Neon — דרכו אפשר גם לשחזר נתונים עד 24 שעות אחורה במקרה של טעות.</div>
+</div>
+
+<div class="card" id="step4">
+  <h2><span class="step-num">4</span>מפתחות אבטחה <span class="badge">אוטומטי</span></h2>
+  <p>נוצרים לבד ונשמרים בקובץ מקומי. אין מה לעשות 🙂</p>
+</div>
+
+<div class="card" id="step5">
+  <h2><span class="step-num">5</span>בינה מלאכותית — Claude <span class="badge">רשות</span></h2>
+  <p>המערכת כוללת עוזר חכם לניהול (צ'אט שמציע שיבוצים) והבנת היעדרויות בשפה
+     חופשית. זה דורש מפתח של Anthropic (תשלום קטן לפי שימוש). <b>המערכת עובדת
+     מצוין גם בלי זה</b> — אפשר לדלג ולהוסיף בעתיד.</p>
+  <p>בחלון השחור: <span class="kbd">y</span> = כן, להגדיר · <span class="kbd">n</span> = דילוג.</p>
+  <h3>אם בחרתם כן:</h3>
+  <ol>
+    <li>גלשו אל <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> והירשמו.</li>
+    <li>ב-<b>Billing</b> הוסיפו אמצעי תשלום.</li>
+    <li>ב-<b>API Keys</b> לחצו <b>Create Key</b>, העתיקו את המפתח (מתחיל ב-<code>sk-ant-</code>) והדביקו בחלון השחור.</li>
+  </ol>
+</div>
+
+<div class="card" id="step6">
+  <h2><span class="step-num">6</span>התראות לטלפון <span class="badge">רשות</span></h2>
+  <p>מאפשר לצוות לקבל התראות (החלפות, שיבוצים) גם כשהאפליקציה סגורה.
+     הכול נוצר אוטומטית — רק תתבקשו להקליד את כתובת המייל שלכם.</p>
+</div>
+
+<div class="card" id="step7">
+  <h2><span class="step-num">7</span>הקמת טבלאות המסד <span class="badge">אוטומטי</span></h2>
+  <p>המערכת בונה את הטבלאות במסד הנתונים שפתחתם בשלב 3. רק לחכות רגע.</p>
+</div>
+
+<div class="card" id="step8">
+  <h2><span class="step-num">8</span>חשבון הניהול שלכם</h2>
+  <p>בחלון השחור תתבקשו לקבוע:</p>
+  <ul>
+    <li><b>Username</b> — שם משתמש להתחברות, באנגלית קטנה (למשל <code>dana</code>).</li>
+    <li><b>Password</b> — סיסמה, לפחות 8 תווים. בזמן ההקלדה יוצגו כוכביות.</li>
+  </ul>
+  <div class="warn">🔑 <b>שמרו את הסיסמה!</b> היא לא נשמרת בשום קובץ ואין דרך לשחזר אותה בלי מנהל נוסף.</div>
+  <p>את <b>שם המרפאה והשם שלכם בעברית</b> תגדירו בתוך האפליקציה עצמה, מיד אחרי
+     ההתחברות הראשונה — שם העברית עובדת מושלם.</p>
+</div>
+
+<div class="card" id="step9">
+  <h2><span class="step-num">9</span>בדיקה מקומית</h2>
+  <ol>
+    <li>האשף מפעיל את המערכת על המחשב שלכם.</li>
+    <li>פתחו בדפדפן: <a href="http://localhost:3000" target="_blank">localhost:3000</a></li>
+    <li>התחברו עם שם המשתמש והסיסמה שקבעתם בשלב 8.</li>
+    <li>ייפתח אשף הגדרה קצר בעברית (שם המרפאה, ימים, שעות, חדרים, צוות) —
+        אפשר לעבור אותו עכשיו או אחרי ההעלאה לאינטרנט.</li>
+    <li>כשסיימתם — חזרו לחלון השחור והקישו <span class="kbd">Ctrl+C</span> לעצירת השרת,
+        ואשרו שהכול עבד (<span class="kbd">y</span>).</li>
+  </ol>
+</div>
+
+<div class="card" id="step10">
+  <h2><span class="step-num">10</span>העלאת הקוד — GitHub <span class="badge">חינם</span></h2>
+  <p>GitHub שומר את קוד המערכת בענן ומאפשר עדכונים אוטומטיים.</p>
+  <ol>
+    <li>אם אין לכם חשבון — הירשמו ב-<a href="https://github.com" target="_blank">github.com</a> (חינם).</li>
+    <li>אם מותקן אצלכם GitHub CLI — האשף יעשה הכול לבד (אולי ייפתח דפדפן לאישור התחברות).</li>
+    <li>אחרת, האשף יבקש ליצור מאגר ידנית:
+      <ul>
+        <li>ב-GitHub לחצו <b>+</b> (למעלה) → <b>New repository</b></li>
+        <li>Repository name: <code>clinic-rooms</code> · בחרו <b>Private</b></li>
+        <li>אל תסמנו שום אפשרות Initialize — מאגר ריק לגמרי → <b>Create repository</b></li>
+        <li>בחלון השחור הקלידו את שם המשתמש שלכם ב-GitHub. בדחיפה ייתכן שייפתח
+            חלון התחברות של GitHub — אשרו בדפדפן.</li>
+      </ul>
+    </li>
+  </ol>
+</div>
+
+<div class="card" id="step11">
+  <h2><span class="step-num">11</span>העלאה לאינטרנט — Vercel <span class="badge">חינם</span></h2>
+  <ol>
+    <li>אם אין לכם חשבון: גלשו אל <a href="https://vercel.com/signup" target="_blank">vercel.com/signup</a>
+        ובחרו <b>Continue with GitHub</b> (חשוב! כך החשבונות מקושרים).</li>
+    <li>האשף מתחבר (ייפתח דפדפן לאישור), יוצר פרויקט, מעלה את ההגדרות ופורס.</li>
+    <li>בסיום תקבלו כתובת קבועה בסגנון <code>https://clinic-rooms-xxxx.vercel.app</code> —
+        זו הכתובת שתמסרו לצוות.</li>
+  </ol>
+  <div class="tip">🔁 מרגע זה, כל עדכון עתידי של הקוד שיועלה ל-GitHub ייפרס אוטומטית.</div>
+</div>
+
+<div class="card" id="step12">
+  <h2><span class="step-num">12</span>גיבוי יומי אוטומטי <span class="badge">רשות, מומלץ!</span></h2>
+  <p>שמירת גיבוי מלא של כל הנתונים, כל לילה, למאגר GitHub פרטי נפרד.</p>
+  <ol>
+    <li>האשף יוצר (או מבקש שתיצרו) מאגר פרטי בשם <code>clinic-rooms-backups</code>.</li>
+    <li>צרו מפתח גישה: גלשו אל
+        <a href="https://github.com/settings/personal-access-tokens/new" target="_blank">יצירת Fine-grained token</a></li>
+    <li>מלאו: Token name: <code>clinic-backup</code> · Repository access:
+        <b>Only select repositories</b> → בחרו את מאגר הגיבויים.</li>
+    <li>Permissions → Repository permissions → <b>Contents</b> → בחרו <b>Read and write</b>.</li>
+    <li>לחצו <b>Generate token</b>, העתיקו (מוצג פעם אחת בלבד!) והדביקו בחלון השחור.</li>
+  </ol>
+</div>
+
+<div class="card" id="after">
+  <h2>🎉 אחרי ההתקנה</h2>
+  <ul>
+    <li>הקובץ <code>SETUP_SUMMARY.txt</code> בתיקיית ההתקנה מרכז את הכתובת ושם המשתמש — שמרו אותו.</li>
+    <li>היכנסו לכתובת המערכת, התחברו, והשלימו את אשף ההגדרה בעברית: שם המרפאה,
+        ימי ושעות פעילות, חדרים ואנשי צוות.</li>
+    <li>מסרו לכל איש צוות את שם המשתמש והסיסמה הזמנית שלו.</li>
+    <li>מדריכים מלאים: <code>docs/ADMIN_GUIDE.md</code> (לניהול) · <code>docs/STAFF_GUIDE.md</code> (לצוות).</li>
+  </ul>
+  <h3>הוספת פיצ'רים בעתיד</h3>
+  <p>בדשבורד של Vercel: Project → Settings → Environment Variables → Add, ואחרי
+     כל שינוי: Deployments → ⋯ → Redeploy.</p>
+  <ul>
+    <li><b>עוזר חכם:</b> משתנה <code>ANTHROPIC_API_KEY</code></li>
+    <li><b>גיבוי יומי:</b> <code>GITHUB_BACKUP_TOKEN</code> + <code>GITHUB_BACKUP_REPO</code> (בפורמט <code>user/repo</code>)</li>
+    <li><b>התראות:</b> <code>NEXT_PUBLIC_VAPID_PUBLIC_KEY</code>, <code>VAPID_PRIVATE_KEY</code>, <code>VAPID_SUBJECT</code>
+        (יצירה: <code>npx web-push generate-vapid-keys</code>)</li>
+  </ul>
+</div>
+
+<div class="card" id="trouble">
+  <h2>🛠 פתרון תקלות</h2>
+  <ul>
+    <li><b>לחיצה על install.bat לא עושה כלום</b> — ודאו שחילצתם את ה-ZIP (לא מריצים מתוכו).
+        אם מופיע מסך כחול "Windows protected your PC" — לחצו More info → Run anyway.</li>
+    <li><b>"Database connection failed"</b> — העתיקו שוב את כתובת ה-Pooled connection מ-Neon, את כל השורה.</li>
+    <li><b>הפריסה ל-Vercel נכשלת</b> — ודאו שנרשמתם ל-Vercel עם Continue with GitHub, והריצו את האשף שוב.</li>
+    <li><b>שכחתם סיסמת ניהול</b> — מנהל אחר מאפס ממסך ניהול המשתמשים.</li>
+    <li><b>עצרתם באמצע?</b> — פשוט הריצו שוב את install.bat: האשף ממשיך מאיפה שעצר.</li>
+  </ul>
+</div>
+
+<footer>
+  נבנה בהתנדבות כשירות לציבור · מסופק ללא אחריות · השימוש באחריות המתקין בלבד
+</footer>
+
+</div>
+</body>
+</html>

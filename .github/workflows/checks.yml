@@ -1,0 +1,20 @@
+# בדיקת בטיחות אוטומטית: נכשלת אם משהו שנראה כמו סוד (מפתח API, סיסמה,
+# טוקן) הגיע בטעות לקוד. רצה על כל דחיפה — גם אצל המקור וגם בעותקי המרפאות.
+name: Secret scan
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/check-secrets.mjs
