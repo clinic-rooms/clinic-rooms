@@ -1,4 +1,4 @@
-# עדכון מערכת — מושך את הגרסה החדשה ממאגר המקור ופורס אוטומטית.
+# עדכון מערכת — מיישר את הקוד לגרסה העדכנית במאגר המקור ופורס אוטומטית.
 #
 # ברירת המחדל: בדיקה אוטומטית כל לילה (03:30 שעון ישראל, כשהמרפאה סגורה).
 # אם יש גרסה חדשה — היא נפרסת, וכל המשתמשים יראו מסך "מה חדש" בכניסה הבאה.
@@ -6,6 +6,9 @@
 #
 # מעדיפים לעדכן רק ידנית? הוסיפו # בתחילת שתי שורות ה-schedule למטה.
 # עדכון ידני בכל רגע: Actions → "עדכון מערכת" → Run workflow.
+#
+# שימו לב: העדכון מחליף את כל קוד המערכת בגרסת המקור (הנתונים אינם חלק
+# מהקוד ולעולם אינם נגעים). אם שיניתם קוד בעצמכם — בטלו את העדכון האוטומטי.
 name: עדכון מערכת (System Update)
 
 on:
@@ -26,27 +29,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Pull the latest version from upstream
+      - name: Sync content from upstream
         run: |
           git config user.name "Clinic Rooms Updater"
           git config user.email "updater@clinic.local"
           git remote add upstream "$UPSTREAM_REPO"
           git fetch upstream main
-          BEFORE=$(git rev-parse HEAD)
-          # clinics never edit code, so a fast-forward always succeeds;
-          # if it doesn't — stop rather than guess (data is never at risk, it's code only)
-          if git merge --ff-only upstream/main; then
-            AFTER=$(git rev-parse HEAD)
-            if [ "$BEFORE" = "$AFTER" ]; then
-              echo "::notice::Already up to date — אתם בגרסה העדכנית."
-            else
-              git push origin main
-              echo "::notice::Updated! Vercel will deploy the new version in a few minutes."
-            fi
-          else
-            echo "::error::Local changes prevent a clean update. Contact the project maintainer."
-            exit 1
+
+          # Mirror the upstream TREE (works even though Vercel clones share no
+          # git history with upstream), but keep OUR workflow files — the
+          # Actions token may not create/modify workflow files anyway.
+          git read-tree upstream/main
+          git rm -r --cached --quiet .github/workflows 2>/dev/null || true
+          git restore --source=HEAD --staged .github/workflows 2>/dev/null || true
+
+          NEW_TREE=$(git write-tree)
+          if [ "$NEW_TREE" = "$(git rev-parse HEAD^{tree})" ]; then
+            echo "::notice::Already up to date — אתם בגרסה העדכנית."
+            exit 0
           fi
+
+          UPSTREAM_SHORT=$(git rev-parse --short upstream/main)
+          NEW_COMMIT=$(git commit-tree "$NEW_TREE" -p HEAD -m "System update: sync to upstream $UPSTREAM_SHORT")
+          git push origin "$NEW_COMMIT":refs/heads/main
+          echo "::notice::Updated! Vercel will deploy the new version in a few minutes."
