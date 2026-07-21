@@ -1,5 +1,6 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { hashPassword } from "better-auth/crypto";
 import { db } from "@/lib/db";
@@ -71,5 +72,7 @@ export async function createFirstAdmin(
     password: hashed,
   });
 
-  return { ok: true };
+  // redirect from the action navigates in one roundtrip — a client-side
+  // push after the await gets dropped, leaving a double-click window
+  redirect("/login");
 }

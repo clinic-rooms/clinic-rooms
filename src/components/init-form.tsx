@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { ShieldCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button, Card, Input, Label, Spinner } from "@/components/ui";
@@ -9,7 +8,6 @@ import { createFirstAdmin } from "@/actions/init";
 
 /** First screen of a fresh Deploy-Button install: create the admin account. */
 export function InitForm() {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -27,15 +25,12 @@ export function InitForm() {
       return;
     }
     setLoading(true);
+    // on success the action itself redirects to /login — no client navigation
     const res = await createFirstAdmin({ name: name.trim(), username: username.trim(), password });
-    setLoading(false);
-    if ("error" in res && res.error) {
+    if (res && "error" in res && res.error) {
+      setLoading(false);
       toast.error(res.error);
-      return;
     }
-    toast.success("חשבון הניהול נוצר! מתחברים…");
-    router.push("/login");
-    router.refresh();
   }
 
   return (

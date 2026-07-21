@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   HeartHandshake,
@@ -54,7 +53,6 @@ export function SetupWizard({
   initial: { clinicName: string; activeDays: number[]; dayStartMin: number; dayEndMin: number };
   admin: { id: string; name: string; username: string };
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [step, setStep] = useState(0);
   const [agreed, setAgreed] = useState(false);
@@ -225,15 +223,9 @@ export function SetupWizard({
   }
 
   function finish() {
+    // the action itself redirects to /admin — client push after await gets dropped
     startTransition(async () => {
-      const res = await completeSetup();
-      if ("error" in res && res.error) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success("המערכת מוכנה לעבודה! 🎉");
-      router.push("/admin");
-      router.refresh();
+      await completeSetup();
     });
   }
 

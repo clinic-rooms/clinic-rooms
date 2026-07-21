@@ -1,14 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import * as t from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/session";
-import type { ActionResult } from "@/lib/action-result";
 
-/** Marks the first-run onboarding as finished — the app opens normally from now on. */
-export async function completeSetup(): Promise<ActionResult> {
+/** Marks the first-run onboarding as finished and enters the admin board. */
+export async function completeSetup(): Promise<void> {
   await requireAdmin();
   const existing = await db.select().from(t.clinicSettings).limit(1);
   if (existing.length > 0) {
@@ -21,5 +21,6 @@ export async function completeSetup(): Promise<ActionResult> {
   }
   revalidatePath("/");
   revalidatePath("/admin");
-  return { ok: true };
+  // redirect from the action — a client-side push after the await gets dropped
+  redirect("/admin");
 }

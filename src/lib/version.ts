@@ -9,7 +9,7 @@
  * once, in a dismissible "מה חדש" dialog.
  */
 
-export const APP_VERSION = "1.0.3";
+export const APP_VERSION = "1.0.4";
 
 export type ChangelogEntry = {
   version: string;
@@ -20,6 +20,13 @@ export type ChangelogEntry = {
 };
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.0.4",
+    date: "22/07/2026",
+    notes: [
+      "תוקן הצורך בלחיצה כפולה ביצירת חשבון הניהול הראשון ובסיום אשף ההגדרה",
+    ],
+  },
   {
     version: "1.0.3",
     date: "21/07/2026",
