@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Link2, Copy, Check, Shield, ShieldCheck, Sparkles } from "lucide-react";
+import { Link2, Copy, Check, Shield, ShieldCheck, Sparkles, RefreshCw } from "lucide-react";
 import { Button, Card, Input, Label, Avatar, Badge, Select } from "@/components/ui";
 import { DAY_NAMES, SLOT_MIN, fmtMin, validateDayBounds } from "@/lib/schedule/slots";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,7 @@ export function SettingsScreen({
   aiEnabled: initialAi = true,
   hasApiKey = true,
   keySource = null,
+  updateSetupUrl = null,
 }: {
   clinicName: string;
   activeDays: number[];
@@ -37,6 +38,7 @@ export function SettingsScreen({
   aiEnabled?: boolean;
   hasApiKey?: boolean;
   keySource?: "env" | "app" | null;
+  updateSetupUrl?: string | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -355,6 +357,33 @@ export function SettingsScreen({
           </button>
         </div>
       </Card>
+
+      {updateSetupUrl && (
+        <Card className="space-y-3">
+          <div className="flex items-center gap-1.5">
+            <RefreshCw size={16} className="text-primary" />
+            <h2 className="font-bold">עדכונים אוטומטיים</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            כדי שהמערכת תקבל שיפורים ותיקונים אוטומטית (כל לילה, כשהמרפאה
+            סגורה) — נדרשת הפעלה חד-פעמית של שתי לחיצות:
+          </p>
+          <ol className="list-decimal space-y-1 ps-5 text-sm text-muted-foreground">
+            <li>לחצו על הכפתור — ייפתח GitHub עם קובץ העדכון מוכן מראש.</li>
+            <li>גללו למטה ולחצו על הכפתור הירוק <b>Commit changes</b> (פעמיים אם נשאלתם).</li>
+          </ol>
+          <a href={updateSetupUrl} target="_blank" rel="noopener noreferrer">
+            <Button variant="secondary" className="w-full">
+              <RefreshCw size={15} />
+              הפעלת עדכונים אוטומטיים ב-GitHub
+            </Button>
+          </a>
+          <p className="text-xs text-muted-foreground">
+            אם כבר הפעלתם בעבר (הקובץ קיים) — GitHub פשוט יציג את הקובץ הקיים ואין מה לעשות.
+            אחרי עדכון, כל משתמש יראה פעם אחת מסך "מה חדש". הנתונים שלכם לעולם אינם חלק מהעדכון.
+          </p>
+        </Card>
+      )}
     </div>
   );
 }

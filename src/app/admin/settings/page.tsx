@@ -4,6 +4,7 @@ import * as t from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/session";
 import { getClinicSettings } from "@/lib/schedule/config";
 import { getAnthropicKey } from "@/lib/ai/key";
+import { updateSetupUrl } from "@/lib/update-workflow";
 import { SettingsScreen } from "@/components/settings-screen";
 import { ClosuresManager } from "@/components/closures-manager";
 import { BackupManager } from "@/components/backup-manager";
@@ -40,6 +41,7 @@ export default async function SettingsPage() {
         aiEnabled={settings.aiEnabled}
         hasApiKey={hasApiKey}
         keySource={source}
+        updateSetupUrl={updateSetupUrl()}
       />
       <div className="mx-auto max-w-md space-y-4">
         <ClosuresManager closures={closures} today={todayIL()} bounds={bounds} />
