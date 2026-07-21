@@ -12,6 +12,7 @@ import {
   UserCog,
   PartyPopper,
   Sparkles,
+  RefreshCw,
   Plus,
   ChevronLeft,
   AppWindow,
@@ -49,9 +50,12 @@ type AddedStaff = { name: string; username: string; tempPassword: string };
 export function SetupWizard({
   initial,
   admin,
+  updateSetupUrl = null,
 }: {
   initial: { clinicName: string; activeDays: number[]; dayStartMin: number; dayEndMin: number };
   admin: { id: string; name: string; username: string };
+  /** prefilled GitHub link that enables auto-updates (null off-Vercel) */
+  updateSetupUrl?: string | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [step, setStep] = useState(0);
@@ -620,6 +624,28 @@ export function SetupWizard({
               <li>👥 צוות: {staff.length > 0 ? `${staff.length} נוספו` : "יתווספו אחר כך"}</li>
               <li>🤖 עוזר חכם: {aiKeySaved ? "פעיל" : "לא הוגדר (אפשר להוסיף בהגדרות)"}</li>
             </ul>
+            {updateSetupUrl && (
+              <div className="space-y-2 rounded-xl border-2 border-primary/40 bg-accent/10 p-3">
+                <p className="flex items-center gap-1.5 text-sm font-bold">
+                  <RefreshCw size={15} className="text-primary" />
+                  צעד אחרון מומלץ: הפעלת עדכונים אוטומטיים
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  כדי שהמערכת תקבל שיפורים ותיקונים אוטומטית (כל לילה, כשהמרפאה
+                  סגורה): לחצו על הכפתור — ייפתח GitHub עם קובץ מוכן מראש —
+                  ושם לחצו על הכפתור הירוק <b>Commit changes</b>. זהו.
+                </p>
+                <a href={updateSetupUrl} target="_blank" rel="noopener noreferrer">
+                  <Button variant="secondary" size="sm" className="w-full">
+                    <RefreshCw size={14} />
+                    הפעלת עדכונים אוטומטיים ב-GitHub
+                  </Button>
+                </a>
+                <p className="text-xs text-muted-foreground">
+                  אפשר גם לדלג ולהפעיל אחר-כך מההגדרות — אבל בלי זה המערכת תישאר בגרסה הנוכחית.
+                </p>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
               את כל ההגדרות אפשר לשנות בכל רגע במסכי הניהול. בהצלחה!
             </p>

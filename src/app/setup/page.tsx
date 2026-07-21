@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/session";
 import { getClinicSettings } from "@/lib/schedule/config";
+import { updateSetupUrl } from "@/lib/update-workflow";
 import { SetupWizard } from "@/components/setup-wizard";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export default async function SetupPage() {
         dayEndMin: settings.dayEndMin,
       }}
       admin={{ id: u.id, name: u.name, username: u.username ?? "" }}
+      updateSetupUrl={updateSetupUrl()}
     />
   );
 }

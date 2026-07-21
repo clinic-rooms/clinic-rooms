@@ -9,7 +9,7 @@
  * once, in a dismissible "מה חדש" dialog.
  */
 
-export const APP_VERSION = "1.0.4";
+export const APP_VERSION = "1.0.5";
 
 export type ChangelogEntry = {
   version: string;
@@ -20,6 +20,13 @@ export type ChangelogEntry = {
 };
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.0.5",
+    date: "22/07/2026",
+    notes: [
+      "מסך הסיום של אשף ההגדרה מציע כעת להפעיל עדכונים אוטומטיים בלחיצה",
+    ],
+  },
   {
     version: "1.0.4",
     date: "22/07/2026",
