@@ -9,7 +9,7 @@
  * once, in a dismissible "מה חדש" dialog.
  */
 
-export const APP_VERSION = "1.0.5";
+export const APP_VERSION = "1.0.6";
 
 export type ChangelogEntry = {
   version: string;
@@ -20,6 +20,13 @@ export type ChangelogEntry = {
 };
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.0.6",
+    date: "22/07/2026",
+    notes: [
+      "תוקנה חסימת פריסה של עדכונים אוטומטיים ב-Vercel (זהות מחבר העדכון)",
+    ],
+  },
   {
     version: "1.0.5",
     date: "22/07/2026",

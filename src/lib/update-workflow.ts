@@ -43,8 +43,10 @@ jobs:
 
       - name: Sync content from upstream
         run: |
-          git config user.name "Clinic Rooms Updater"
-          git config user.email "updater@clinic.local"
+          # the official Actions-bot identity — Vercel blocks deployments whose
+          # commit author is not a recognized GitHub account
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote add upstream "$UPSTREAM_REPO"
           git fetch upstream main
 
