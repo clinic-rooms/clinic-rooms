@@ -100,7 +100,13 @@ export function RoomWeek({
                   const cell = d.cells?.[slot] ?? { type: "closed" as const };
                   const prev = slot > 0 ? d.cells?.[slot - 1] : undefined;
                   const segStart =
-                    cell.type === "occupied" && (!prev || prev.type !== "occupied" || prev.userId !== cell.userId);
+                    cell.type === "occupied" &&
+                    (!prev ||
+                      prev.type !== "occupied" ||
+                      prev.userId !== cell.userId ||
+                      // free-text labels all share userId "" — split segments by the label row
+                      ((cell.source === "label" || prev.source === "label") && prev.refId !== cell.refId));
+                  const segBoundary = segStart && prev?.type === "occupied";
                   return (
                     <td
                       key={d.date}
@@ -109,7 +115,8 @@ export function RoomWeek({
                         cell.type === "closed" && "bg-muted/60",
                         cell.type === "free" && "bg-card",
                         cell.type === "freed" &&
-                          "bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,var(--border)_4px,var(--border)_6px)]"
+                          "bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,var(--border)_4px,var(--border)_6px)]",
+                        segBoundary && "shadow-[inset_0_2px_0_rgba(255,255,255,0.75)]"
                       )}
                       style={cell.type === "occupied" ? cellStyle(cell.color, cell.pattern) : undefined}
                     >

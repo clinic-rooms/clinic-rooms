@@ -307,7 +307,12 @@ export function AdminGrid({
                     (!prev ||
                       prev.type !== "occupied" ||
                       prev.userId !== cell.userId ||
+                      // free-text labels all share userId "" — split segments by the label row
+                      ((cell.source === "label" || prev.source === "label") && prev.refId !== cell.refId) ||
                       prev.second?.userId !== cell.second?.userId);
+                  // boundary between two adjacent occupied segments — draw a light
+                  // divider so same-colored neighbors (e.g. two labels) don't blend
+                  const segBoundary = segStart && prev?.type === "occupied";
                   const ghostSegStart =
                     cell.type === "freed" &&
                     cell.inactive &&
@@ -326,6 +331,7 @@ export function AdminGrid({
                         cell.type === "closed" && "bg-muted/60",
                         cell.type === "free" && "bg-card",
                         cell.type === "freed" && "bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,var(--border)_4px,var(--border)_6px)]",
+                        segBoundary && "shadow-[inset_0_2px_0_rgba(255,255,255,0.75)]",
                         clickable && "cursor-pointer hover:bg-accent/40"
                       )}
                       style={

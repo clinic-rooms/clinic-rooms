@@ -224,7 +224,12 @@ export const toolDefinitions: Anthropic.Tool[] = [
               day_of_week: { type: "integer" },
               start: { type: "string" },
               end: { type: "string" },
-              date: { type: "string", description: "גם עבור add_absence של יום בודד" },
+              date: { type: "string", description: "עבור add_booking; עבור add_absence — תאריך ההתחלה" },
+              date_to: {
+                type: "string",
+                description:
+                  "עבור add_absence של טווח (חופשה ארוכה): תאריך הסיום, כולל. השאר ריק ליום בודד — אין לפרק חופשה ארוכה לימים בודדים",
+              },
               effective_from: { type: "string" },
               effective_to: { type: "string" },
               assignment_id: { type: "string" },
@@ -553,20 +558,25 @@ export async function executeTool(
           const user = findUser(ds, String(c.user_name ?? ""));
           if (!user) return { result: { error: `לא נמצא מטפל: ${c.user_name}` } };
           const date = assertDate(String(c.date));
-          const hasHours = c.start != null && c.end != null;
+          const dateTo = c.date_to ? assertDate(String(c.date_to)) : date;
+          if (dateTo < date) return { result: { error: "date_to חייב להיות אחרי date" } };
+          // hours apply only to a single day; a multi-day vacation is whole days
+          const hasHours = date === dateTo && c.start != null && c.end != null;
           const startMin = hasHours ? parseTime(String(c.start)) : null;
           const endMin = hasHours ? parseTime(String(c.end)) : null;
           changes.push({
             op: "add_absence",
             userId: user.id,
             dateFrom: date,
-            dateTo: date,
+            dateTo,
             startMin,
             endMin,
             note: c.note ? String(c.note) : undefined,
           });
           description.push(
-            `${user.name} מפנה את החדר ב־${date}${hasHours ? ` ${fmtRange(startMin!, endMin!)}` : " (יום שלם)"}${c.note ? ` — ${c.note}` : ""}`
+            date === dateTo
+              ? `${user.name} מפנה את החדר ב־${date}${hasHours ? ` ${fmtRange(startMin!, endMin!)}` : " (יום שלם)"}${c.note ? ` — ${c.note}` : ""}`
+              : `${user.name} בחופשה ${date} עד ${dateTo}${c.note ? ` — ${c.note}` : ""}`
           );
         } else if (op === "move_assignment") {
           const id = String(c.assignment_id ?? "");
