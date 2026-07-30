@@ -9,6 +9,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { notifyMany } from "@/lib/notifications";
 import { DAY_NAMES, fmtRange } from "@/lib/schedule/slots";
 import { getScheduleConfig, checkWindow } from "@/lib/schedule/config";
+import { findTouchingFullDayAbsences, mergeIntoExisting } from "@/lib/absence-merge";
 import type { ActionResult } from "@/lib/action-result";
 
 const timeField = () => z.number().int().min(0).max(1440).multipleOf(30);
@@ -81,7 +82,7 @@ export async function updateAssignmentHours(
   assignmentId: string,
   startMin: number,
   endMin: number
-): Promise<ActionResult> {
+): Promise<ActionResult<{ prevStartMin: number; prevEndMin: number }>> {
   const parsed = editHoursSchema.safeParse({ assignmentId, startMin, endMin });
   if (!parsed.success) return { error: "טווח שעות לא תקין" };
   await requireAdmin();
@@ -105,11 +106,15 @@ export async function updateAssignmentHours(
   ]);
   revalidatePath("/admin");
   revalidatePath("/");
-  return { ok: true };
+  // previous hours let the client offer undo
+  return { ok: true, prevStartMin: a.startMin, prevEndMin: a.endMin };
 }
 
 /** Soft-end an assignment from a given date (history preserved). */
-export async function endAssignment(id: string, effectiveTo: string): Promise<ActionResult> {
+export async function endAssignment(
+  id: string,
+  effectiveTo: string
+): Promise<ActionResult<{ prevEffectiveTo: string | null }>> {
   await requireAdmin();
   const [a] = await db.select().from(t.fixedAssignments).where(eq(t.fixedAssignments.id, id));
   if (!a) return { error: "השיבוץ לא נמצא" };
@@ -129,6 +134,23 @@ export async function endAssignment(id: string, effectiveTo: string): Promise<Ac
       },
     },
   ]);
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return { ok: true, prevEffectiveTo: a.effectiveTo };
+}
+
+/** Undo for endAssignment — restores the assignment's previous end date (usually none). */
+export async function reopenAssignment(
+  id: string,
+  prevEffectiveTo: string | null = null
+): Promise<ActionResult> {
+  await requireAdmin();
+  const [a] = await db.select().from(t.fixedAssignments).where(eq(t.fixedAssignments.id, id));
+  if (!a) return { error: "השיבוץ לא נמצא" };
+  await db
+    .update(t.fixedAssignments)
+    .set({ effectiveTo: prevEffectiveTo })
+    .where(eq(t.fixedAssignments.id, id));
   revalidatePath("/admin");
   revalidatePath("/");
   return { ok: true };
@@ -165,7 +187,7 @@ const scheduledMoveSchema = z
  */
 export async function scheduleAssignmentMove(
   input: z.infer<typeof scheduledMoveSchema>
-): Promise<ActionResult> {
+): Promise<ActionResult<{ prevEffectiveTo: string | null; newAssignmentId: string }>> {
   const parsed = scheduledMoveSchema.safeParse(input);
   if (!parsed.success) return { error: "נתונים לא תקינים" };
   await requireAdmin();
@@ -189,16 +211,19 @@ export async function scheduleAssignmentMove(
   const effectiveTo = dayBefore.toISOString().slice(0, 10);
 
   await db.update(t.fixedAssignments).set({ effectiveTo }).where(eq(t.fixedAssignments.id, assignmentId));
-  await db.insert(t.fixedAssignments).values({
-    userId: a.userId,
-    roomId,
-    dayOfWeek,
-    startMin,
-    endMin,
-    effectiveFrom: fromDate,
-    source: "admin",
-    kind: a.kind as "regular" | "group",
-  });
+  const [created] = await db
+    .insert(t.fixedAssignments)
+    .values({
+      userId: a.userId,
+      roomId,
+      dayOfWeek,
+      startMin,
+      endMin,
+      effectiveFrom: fromDate,
+      source: "admin",
+      kind: a.kind as "regular" | "group",
+    })
+    .returning();
 
   const [room] = await db.select().from(t.rooms).where(eq(t.rooms.id, roomId));
   const parts: string[] = [];
@@ -213,6 +238,23 @@ export async function scheduleAssignmentMove(
     },
   ]);
 
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return { ok: true, prevEffectiveTo: a.effectiveTo, newAssignmentId: created.id };
+}
+
+/** Undo for scheduleAssignmentMove — deletes the future row and restores the original end date. */
+export async function undoAssignmentMove(input: {
+  assignmentId: string;
+  prevEffectiveTo: string | null;
+  newAssignmentId: string;
+}): Promise<ActionResult> {
+  await requireAdmin();
+  await db.delete(t.fixedAssignments).where(eq(t.fixedAssignments.id, input.newAssignmentId));
+  await db
+    .update(t.fixedAssignments)
+    .set({ effectiveTo: input.prevEffectiveTo })
+    .where(eq(t.fixedAssignments.id, input.assignmentId));
   revalidatePath("/admin");
   revalidatePath("/");
   return { ok: true };
@@ -236,7 +278,9 @@ const labelSchema = z
   .refine((v) => v.endMin > v.startMin, { message: "טווח שעות הפוך" })
   .refine((v) => (v.recurring ? v.dayOfWeek != null : v.date != null), { message: "חסר יום/תאריך" });
 
-export async function upsertLabel(input: z.infer<typeof labelSchema>): Promise<ActionResult> {
+export async function upsertLabel(
+  input: z.infer<typeof labelSchema>
+): Promise<ActionResult<{ labelId: string }>> {
   const parsed = labelSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "נתונים לא תקינים" };
   await requireAdmin();
@@ -253,22 +297,28 @@ export async function upsertLabel(input: z.infer<typeof labelSchema>): Promise<A
     effectiveFrom: d.recurring ? d.effectiveFrom ?? null : null,
     color: d.color ?? "#64748b",
   };
+  let labelId = d.id;
   if (d.id) {
     await db.update(t.manualLabels).set(values).where(eq(t.manualLabels.id, d.id));
   } else {
-    await db.insert(t.manualLabels).values(values);
+    const [row] = await db.insert(t.manualLabels).values(values).returning();
+    labelId = row.id;
   }
   revalidatePath("/admin");
   revalidatePath("/");
-  return { ok: true };
+  return { ok: true, labelId };
 }
 
-export async function deleteLabel(id: string): Promise<ActionResult> {
+/** Deletes a label; returns its data so the client can offer undo (re-create). */
+export async function deleteLabel(
+  id: string
+): Promise<ActionResult<{ deleted: typeof t.manualLabels.$inferSelect }>> {
   await requireAdmin();
+  const [row] = await db.select().from(t.manualLabels).where(eq(t.manualLabels.id, id));
   await db.delete(t.manualLabels).where(eq(t.manualLabels.id, id));
   revalidatePath("/admin");
   revalidatePath("/");
-  return { ok: true };
+  return { ok: true, deleted: row };
 }
 
 const adminBookingSchema = z
@@ -432,6 +482,17 @@ export async function applyProposal(
         (c.startMin == null) !== (c.endMin == null)
       ) {
         return { error: "שינוי לא תקין בסט", applied };
+      }
+      // full-day vacation that touches an existing one — extend it, don't duplicate
+      if (c.startMin == null) {
+        const { touching } = await findTouchingFullDayAbsences(c.userId, c.dateFrom, c.dateTo);
+        if (touching.length > 0) {
+          const covered = touching.some((r) => r.dateFrom <= c.dateFrom && r.dateTo >= c.dateTo);
+          if (!covered) await mergeIntoExisting(touching, c.dateFrom, c.dateTo, c.note);
+          affected.add(c.userId);
+          applied.push(covered ? "add_absence (כבר היה מעודכן)" : "add_absence (אוחד עם חופשה קיימת)");
+          continue;
+        }
       }
       await db.insert(t.oneTimeAbsences).values({
         userId: c.userId,

@@ -11,6 +11,7 @@ import { checkWaitlistForDates, datesInRange } from "@/lib/waitlist";
 import { maskFor, dowOf } from "@/lib/schedule/slots";
 import { getScheduleConfig, checkWindow } from "@/lib/schedule/config";
 import { todayIL } from "@/lib/dates";
+import { findTouchingFullDayAbsences, unionRange, mergeIntoExisting } from "@/lib/absence-merge";
 import type { ActionResult } from "@/lib/action-result";
 
 const absenceSchema = z
@@ -21,6 +22,8 @@ const absenceSchema = z
     startMin: z.number().int().min(0).max(1440).multipleOf(30).nullable(),
     endMin: z.number().int().min(0).max(1440).multipleOf(30).nullable(),
     note: z.string().max(200).optional(),
+    // caller confirmed merging with an overlapping existing vacation
+    merge: z.boolean().optional(),
   })
   .refine((v) => v.dateTo >= v.dateFrom, { message: "טווח תאריכים הפוך" })
   .refine((v) => (v.startMin == null) === (v.endMin == null), { message: "שעות חלקיות" })
@@ -78,15 +81,60 @@ async function restoredWindowConflicts(
   return false;
 }
 
+export type AbsenceConflict = {
+  kind: "covered" | "overlap";
+  existingFrom: string;
+  existingTo: string;
+  unionFrom: string;
+  unionTo: string;
+};
+
 export async function createAbsence(
   input: z.infer<typeof absenceSchema>
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string; merged: boolean; conflict: AbsenceConflict }>> {
   const parsed = absenceSchema.safeParse(input);
   if (!parsed.success) return { error: "נתונים לא תקינים" };
   const { userId, actingForOther, session } = await resolveActor(parsed.data.userId);
-  if (parsed.data.startMin != null) {
-    const windowErr = checkWindow(await getScheduleConfig(), parsed.data.startMin, parsed.data.endMin!);
+  const d = parsed.data;
+  if (d.startMin != null) {
+    const windowErr = checkWindow(await getScheduleConfig(), d.startMin, d.endMin!);
     if (windowErr) return { error: windowErr };
+  }
+
+  // full-day vacations: detect an existing overlapping/continuous vacation so
+  // the same absence isn't recorded twice (e.g. both admin and user enter it)
+  if (d.startMin == null) {
+    const { touching } = await findTouchingFullDayAbsences(userId, d.dateFrom, d.dateTo);
+    if (touching.length > 0) {
+      const union = unionRange([...touching, { dateFrom: d.dateFrom, dateTo: d.dateTo }]);
+      const covered = touching.some((r) => r.dateFrom <= d.dateFrom && r.dateTo >= d.dateTo);
+      if (!d.merge) {
+        return {
+          conflict: {
+            kind: covered ? "covered" : "overlap",
+            existingFrom: touching[0].dateFrom,
+            existingTo: touching[touching.length - 1].dateTo,
+            unionFrom: union.dateFrom,
+            unionTo: union.dateTo,
+          },
+        };
+      }
+      const merged = await mergeIntoExisting(touching, d.dateFrom, d.dateTo, d.note);
+      if (actingForOther) {
+        await notify(userId, "vacation_added", {
+          by: session.user.name,
+          dateFrom: merged.dateFrom,
+          dateTo: merged.dateTo,
+          startMin: null,
+          endMin: null,
+        });
+      }
+      await checkWaitlistForDates(datesInRange(d.dateFrom, d.dateTo));
+      revalidatePath("/");
+      revalidatePath("/absences");
+      revalidatePath("/admin");
+      return { ok: true, id: merged.id, merged: true };
+    }
   }
 
   const [row] = await db

@@ -39,10 +39,13 @@ export function RequestWizard({
   today,
   activeDays,
   bounds,
+  centers = [],
 }: {
   today: string;
   activeDays: number[];
   bounds: SlotBounds;
+  /** multi-center mode: non-empty list enables the center filter */
+  centers?: { id: string; name: string }[];
 }) {
   const nSlots = (bounds.dayEndMin - bounds.dayStartMin) / SLOT_MIN;
   const router = useRouter();
@@ -55,6 +58,7 @@ export function RequestWizard({
   const [wantWindow, setWantWindow] = useState(false);
   const [wantSink, setWantSink] = useState(false);
   const [wantLarge, setWantLarge] = useState(false);
+  const [centerId, setCenterId] = useState<string>(""); // "" = all centers
 
   const [joinedWaitlist, setJoinedWaitlist] = useState(false);
   const [startSlot, setStartSlot] = useState<number | null>(null);
@@ -89,6 +93,7 @@ export function RequestWizard({
         wantWindow: wantWindow || undefined,
         wantSink: wantSink || undefined,
         wantLarge: wantLarge || undefined,
+        centerId: centerId || undefined,
       });
       if ("error" in res) {
         toast.error(res.error);
@@ -255,6 +260,18 @@ export function RequestWizard({
               </p>
             )}
           </div>
+
+          {centers.length > 0 && (
+            <div>
+              <Label>איפה לחפש חדר</Label>
+              <div className="flex flex-wrap gap-2">
+                <PrefChip active={centerId === ""} onClick={() => setCenterId("")} label="בכל המרכזים" />
+                {centers.map((c) => (
+                  <PrefChip key={c.id} active={centerId === c.id} onClick={() => setCenterId(c.id)} label={c.name} />
+                ))}
+              </div>
+            </div>
+          )}
 
           {sessionType !== "group" && (
             <div>
@@ -487,7 +504,7 @@ function PrefChip({
 }: {
   active: boolean;
   onClick: () => void;
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   label: string;
 }) {
   return (

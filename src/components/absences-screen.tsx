@@ -294,13 +294,32 @@ function OneTimeTab({ absences, today, bounds }: { absences: Absence[]; today: s
         toast.success("עודכן");
         return;
       }
-      const res = await createAbsence(input);
+      let res = await createAbsence(input);
+      if (res.conflict) {
+        const c = res.conflict;
+        if (c.kind === "covered") {
+          toast.info(
+            `החופשה כבר מעודכנת במערכת (${fmtDateShort(c.existingFrom)} – ${fmtDateShort(c.existingTo)}) — אין צורך להזין שוב`
+          );
+          setShowForm(false);
+          return;
+        }
+        const ok = confirm(
+          `כבר מעודכנת חופשה ${fmtDateShort(c.existingFrom)} – ${fmtDateShort(c.existingTo)}.\nלעדכן אותה לטווח המלא ${fmtDateShort(c.unionFrom)} – ${fmtDateShort(c.unionTo)}?`
+        );
+        if (!ok) return;
+        res = await createAbsence({ ...input, merge: true });
+      }
       if (res.error) {
         toast.error(res.error);
         return;
       }
       setShowForm(false);
       router.refresh();
+      if (res.merged) {
+        toast.success("החופשה הקיימת עודכנה לטווח המלא");
+        return;
+      }
       const newId = res.id;
       toast.success("ההיעדרות נשמרה", {
         action: newId
@@ -338,6 +357,7 @@ function OneTimeTab({ absences, today, bounds }: { absences: Absence[]; today: s
               startMin: a.startMin,
               endMin: a.endMin,
               note: a.note ?? undefined,
+              merge: true, // restore may touch an adjacent vacation — merge silently
             });
             if ("error" in undo && undo.error) toast.error(undo.error);
             else {

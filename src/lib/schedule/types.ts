@@ -12,6 +12,7 @@ export type EngineRoom = {
   isLarge: boolean;
   sortOrder: number;
   isActive: boolean;
+  centerId?: string | null; // multi-center mode; null = shown in every center
 };
 
 export type EngineUser = {
@@ -141,6 +142,8 @@ export type RoomFilters = {
   hasSink?: boolean;
   isLarge?: boolean;
   isGroupRoom?: boolean;
+  // multi-center: limit search to one center (rooms without a center always match)
+  centerId?: string;
 };
 
 export type ScoredRoom = {

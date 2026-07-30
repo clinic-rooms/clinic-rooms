@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, DoorOpen, Users, MessageSquareText, Settings, BarChart3 } from "lucide-react";
+import { LayoutGrid, DoorOpen, Users, MessageSquareText, Settings, BarChart3, Plane } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
   { href: "/admin", label: "לוח שיבוצים", icon: LayoutGrid },
+  { href: "/admin/vacations", label: "חופשות", icon: Plane },
   { href: "/admin/stats", label: "ניצולת", icon: BarChart3 },
   { href: "/admin/rooms", label: "חדרים", icon: DoorOpen },
   { href: "/admin/users", label: "צוות", icon: Users },

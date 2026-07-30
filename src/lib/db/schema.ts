@@ -39,6 +39,8 @@ export const user = pgTable("user", {
   // last APP_VERSION whose "what's new" dialog this user dismissed
   // (null = fresh user — set silently on first visit, no dialog)
   lastSeenVersion: text("last_seen_version"),
+  // the center whose board opens by default for this user (multi-center mode)
+  primaryCenterId: uuid("primary_center_id"),
 });
 
 export const session = pgTable("session", {
@@ -102,6 +104,16 @@ export const clinicSettings = pgTable("clinic_settings", {
   anthropicApiKey: text("anthropic_api_key"),
   // false until the first-run onboarding wizard finishes
   setupComplete: boolean("setup_complete").notNull().default(false),
+  // multi-site mode: rooms are grouped into centers, boards get a center switcher
+  multiCenter: boolean("multi_center").notNull().default(false),
+});
+
+// clinic sites/branches — only meaningful when clinicSettings.multiCenter is on
+export const centers = pgTable("centers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const rooms = pgTable("rooms", {
@@ -115,6 +127,8 @@ export const rooms = pgTable("rooms", {
   sortOrder: integer("sort_order").notNull().default(0),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
+  // null = not assigned to a center (shown in every center view)
+  centerId: uuid("center_id").references(() => centers.id, { onDelete: "set null" }),
 });
 
 export const roomAvailability = pgTable(
@@ -364,6 +378,7 @@ export const notifications = pgTable(
 // convenient TS types
 export type User = typeof user.$inferSelect;
 export type Room = typeof rooms.$inferSelect;
+export type Center = typeof centers.$inferSelect;
 export type RoomAvailability = typeof roomAvailability.$inferSelect;
 export type FixedAssignment = typeof fixedAssignments.$inferSelect;
 export type RecurringReduction = typeof recurringReductions.$inferSelect;

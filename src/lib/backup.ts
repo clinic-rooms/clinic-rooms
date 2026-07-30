@@ -15,6 +15,7 @@ export async function exportAll(createdAt: string): Promise<BackupFile> {
     account,
     verification,
     clinicSettings,
+    centers,
     rooms,
     roomAvailability,
     fixedAssignments,
@@ -33,6 +34,7 @@ export async function exportAll(createdAt: string): Promise<BackupFile> {
     db.select().from(t.account),
     db.select().from(t.verification),
     db.select().from(t.clinicSettings),
+    db.select().from(t.centers),
     db.select().from(t.rooms),
     db.select().from(t.roomAvailability),
     db.select().from(t.fixedAssignments),
@@ -56,6 +58,7 @@ export async function exportAll(createdAt: string): Promise<BackupFile> {
       account,
       verification,
       clinic_settings: clinicSettings,
+      centers,
       rooms,
       room_availability: roomAvailability,
       fixed_assignments: fixedAssignments,
@@ -104,6 +107,7 @@ export async function importAll(backup: BackupFile): Promise<void> {
   await db.delete(t.roomAvailability);
   await db.delete(t.clinicClosures);
   await db.delete(t.rooms);
+  await db.delete(t.centers);
   await db.delete(t.clinicSettings);
   await db.delete(t.session);
   await db.delete(t.account);
@@ -122,6 +126,7 @@ export async function importAll(backup: BackupFile): Promise<void> {
   await ins(t.account, T.account);
   await ins(t.verification, T.verification);
   await ins(t.clinicSettings, T.clinic_settings);
+  await ins(t.centers, T.centers);
   await ins(t.rooms, T.rooms);
   await ins(t.roomAvailability, T.room_availability);
   await ins(t.fixedAssignments, T.fixed_assignments);

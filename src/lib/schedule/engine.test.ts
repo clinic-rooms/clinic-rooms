@@ -412,6 +412,19 @@ describe("scoring", () => {
     expect(soft[0].room.name).toBe("חלון");
     expect(soft).toHaveLength(2);
   });
+
+  it("center filter keeps the center's rooms plus unassigned rooms", () => {
+    const north = room({ name: "צפון", centerId: "c-north" });
+    const south = room({ name: "דרום", centerId: "c-south" });
+    const shared = room({ name: "משותף", centerId: null });
+    const alice = user({ name: "אליס" });
+    const sched = computeDaySchedule(baseData(MON, [north, south, shared], [alice]));
+
+    const ranked = rankFreeRooms(sched, maskFor(CFG, 480, 540), emptyCtx(alice), {
+      filters: { centerId: "c-north" },
+    });
+    expect(ranked.map((r) => r.room.name).sort()).toEqual(["משותף", "צפון"]);
+  });
 });
 
 // ---------- suggestions ----------

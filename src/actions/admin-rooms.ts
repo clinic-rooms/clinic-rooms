@@ -19,6 +19,8 @@ const roomSchema = z.object({
   isLarge: z.boolean(),
   notes: z.string().max(200).optional(),
   sortOrder: z.number().int().optional(),
+  // multi-center mode; null = the room shows in every center
+  centerId: z.string().uuid().nullable().optional(),
 });
 
 export async function upsertRoom(

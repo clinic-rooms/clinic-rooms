@@ -127,6 +127,7 @@ export function suggestSwaps(
     if (opts.filters?.hasWindow && !rd.room.hasWindow) continue;
     if (opts.filters?.isLarge && !rd.room.isLarge) continue;
     if (opts.filters?.isGroupRoom && !rd.room.isGroupRoom) continue;
+    if (opts.filters?.centerId && rd.room.centerId && rd.room.centerId !== opts.filters.centerId) continue;
 
     const blockers = rd.occupants.filter((o) => (o.mask & wantedMask) !== 0 && o.userId !== requesterUserId);
     if (blockers.length !== 1) continue; // only simple single-occupant swaps
@@ -202,6 +203,7 @@ export function stitchPlacement(
     if (opts.filters?.hasWindow && !rd.room.hasWindow) return false;
     if (opts.filters?.isLarge && !rd.room.isLarge) return false;
     if (opts.filters?.isGroupRoom && !rd.room.isGroupRoom) return false;
+    if (opts.filters?.centerId && rd.room.centerId && rd.room.centerId !== opts.filters.centerId) return false;
     return true;
   });
   const scores = new Map(

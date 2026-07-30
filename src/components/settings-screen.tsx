@@ -3,14 +3,24 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Link2, Copy, Check, Shield, ShieldCheck, Sparkles, RefreshCw } from "lucide-react";
+import { Link2, Copy, Check, Shield, ShieldCheck, Sparkles, RefreshCw, Building2, Plus, Trash2 } from "lucide-react";
 import { Button, Card, Input, Label, Avatar, Badge, Select } from "@/components/ui";
 import { DAY_NAMES, SLOT_MIN, fmtMin, validateDayBounds } from "@/lib/schedule/slots";
 import { cn } from "@/lib/utils";
-import { updateSettings, setShareLink, setAiEnabled, setAnthropicKey } from "@/actions/admin-settings";
+import {
+  updateSettings,
+  setShareLink,
+  setAiEnabled,
+  setAnthropicKey,
+  setMultiCenter,
+  createCenter,
+  renameCenter,
+  deleteCenter,
+} from "@/actions/admin-settings";
 import { updateStaffUser } from "@/actions/admin-users";
 
 type StaffLite = { id: string; name: string; role: string; color: string; pattern: string };
+export type CenterLite = { id: string; name: string; roomCount: number };
 
 const ALL_TIMES: number[] = [];
 for (let m = 0; m <= 24 * 60; m += SLOT_MIN) ALL_TIMES.push(m);
@@ -27,6 +37,8 @@ export function SettingsScreen({
   hasApiKey = true,
   keySource = null,
   updateSetupUrl = null,
+  multiCenter: initialMultiCenter = false,
+  centers = [],
 }: {
   clinicName: string;
   activeDays: number[];
@@ -39,6 +51,8 @@ export function SettingsScreen({
   hasApiKey?: boolean;
   keySource?: "env" | "app" | null;
   updateSetupUrl?: string | null;
+  multiCenter?: boolean;
+  centers?: CenterLite[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -291,6 +305,8 @@ export function SettingsScreen({
         </div>
       </Card>
 
+      <MultiCenterCard initialEnabled={initialMultiCenter} centers={centers} />
+
       <Card className="space-y-3">
         <div className="flex items-center gap-1.5">
           <Sparkles size={16} className="text-primary" />
@@ -385,5 +401,147 @@ export function SettingsScreen({
         </Card>
       )}
     </div>
+  );
+}
+
+/** Multi-site mode: toggle + centers management. Off = single clinic, no UI changes anywhere. */
+function MultiCenterCard({ initialEnabled, centers }: { initialEnabled: boolean; centers: CenterLite[] }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [enabled, setEnabled] = useState(initialEnabled);
+  const [newName, setNewName] = useState("");
+  const [names, setNames] = useState<Record<string, string>>(
+    Object.fromEntries(centers.map((c) => [c.id, c.name]))
+  );
+
+  function toggle(next: boolean) {
+    setEnabled(next);
+    startTransition(async () => {
+      const res = await setMultiCenter(next);
+      if (res.error) {
+        toast.error(res.error);
+        setEnabled(!next);
+        return;
+      }
+      toast.success(next ? "מצב רב־מרכזי הופעל" : "מצב רב־מרכזי כובה — הלוחות חזרו לתצוגה אחת");
+      router.refresh();
+    });
+  }
+
+  function add() {
+    if (!newName.trim()) return;
+    startTransition(async () => {
+      const res = await createCenter(newName.trim());
+      if (res.error) toast.error(res.error);
+      else {
+        toast.success("המרכז נוסף");
+        setNewName("");
+        router.refresh();
+      }
+    });
+  }
+
+  function rename(id: string) {
+    const name = (names[id] ?? "").trim();
+    const original = centers.find((c) => c.id === id)?.name;
+    if (!name || name === original) return;
+    startTransition(async () => {
+      const res = await renameCenter(id, name);
+      if (res.error) toast.error(res.error);
+      else {
+        toast.success("שם המרכז עודכן");
+        router.refresh();
+      }
+    });
+  }
+
+  function remove(c: CenterLite) {
+    if (!confirm(`למחוק את המרכז «${c.name}»?`)) return;
+    startTransition(async () => {
+      const res = await deleteCenter(c.id);
+      if (res.error) toast.error(res.error);
+      else {
+        toast.success("המרכז נמחק");
+        router.refresh();
+      }
+    });
+  }
+
+  return (
+    <Card className="space-y-3">
+      <div className="flex items-center gap-1.5">
+        <Building2 size={16} className="text-primary" />
+        <h2 className="font-bold">מרפאה רב־מרכזית</h2>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        למרפאה עם כמה סניפים/מרכזים: כל חדר משויך למרכז, ובלוחות מופיע מעבר נוח בין המרכזים.
+        המערכת זוכרת לכל איש צוות את המרכז העיקרי שלו. כשהמצב כבוי — הכל מתנהג כמרפאה אחת רגילה.
+      </p>
+      <div className="flex items-center justify-between rounded-xl border border-border p-3">
+        <span className="text-sm font-medium">{enabled ? "מופעל" : "כבוי"}</span>
+        <button
+          role="switch"
+          aria-checked={enabled}
+          disabled={pending}
+          onClick={() => toggle(!enabled)}
+          className={cn(
+            "relative h-6 w-11 rounded-full transition-colors disabled:opacity-50",
+            enabled ? "bg-primary" : "bg-muted-foreground/40"
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+              enabled ? "left-0.5" : "left-[22px]"
+            )}
+          />
+        </button>
+      </div>
+
+      {enabled && (
+        <div className="space-y-2">
+          <Label>המרכזים</Label>
+          {centers.length === 0 && (
+            <p className="text-xs text-muted-foreground">אין מרכזים עדיין — הוסיפו את הראשון למטה.</p>
+          )}
+          {centers.map((c) => (
+            <div key={c.id} className="flex items-center gap-2">
+              <Input
+                value={names[c.id] ?? c.name}
+                onChange={(e) => setNames({ ...names, [c.id]: e.target.value })}
+                onBlur={() => rename(c.id)}
+                maxLength={40}
+              />
+              <Badge className="shrink-0">{c.roomCount} חדרים</Badge>
+              <Button
+                size="icon"
+                variant="ghost"
+                disabled={pending}
+                onClick={() => remove(c)}
+                aria-label={`מחיקת ${c.name}`}
+              >
+                <Trash2 size={15} />
+              </Button>
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="שם מרכז חדש (למשל: סניף מרכז)"
+              maxLength={40}
+              onKeyDown={(e) => e.key === "Enter" && add()}
+            />
+            <Button onClick={add} disabled={pending || !newName.trim()}>
+              <Plus size={15} />
+              הוספה
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            שיוך חדרים למרכזים נעשה במסך «חדרים». חדר ללא שיוך יופיע בכל המרכזים.
+          </p>
+        </div>
+      )}
+    </Card>
   );
 }

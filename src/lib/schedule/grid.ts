@@ -1,4 +1,7 @@
 import "server-only";
+import { db } from "@/lib/db";
+import * as t from "@/lib/db/schema";
+import { getClinicSettings } from "@/lib/schedule/config";
 import { loadDayData, loadEngineData, getActiveDays, activeWeekDates } from "@/lib/schedule/data";
 import { computeDaySchedule } from "@/lib/schedule/engine";
 import type { RoomDay, EngineUser } from "@/lib/schedule/types";
@@ -75,8 +78,16 @@ export async function buildGridForDate(requestedDate?: string): Promise<{
   onLeave: OnLeaveEntry[];
   closure: { type: "closed" | "early"; label: string; endMin: number } | null;
   isToday: boolean;
+  multiCenter: boolean;
+  centers: { id: string; name: string }[];
 }> {
   const activeDays = await getActiveDays();
+  const multiCenter = (await getClinicSettings()).multiCenter;
+  const centers = multiCenter
+    ? (await db.select().from(t.centers).orderBy(t.centers.sortOrder))
+        .filter((c) => c.isActive)
+        .map((c) => ({ id: c.id, name: c.name }))
+    : [];
 
   let date =
     requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : todayIL();
@@ -99,6 +110,7 @@ export async function buildGridForDate(requestedDate?: string): Promise<{
         isLarge: rd.room.isLarge,
         isGroupRoom: rd.room.isGroupRoom,
         isPool: rd.room.isPool,
+        centerId: rd.room.centerId ?? null,
         cells,
       };
     });
@@ -152,6 +164,8 @@ export async function buildGridForDate(requestedDate?: string): Promise<{
     onLeave,
     closure: schedule.closure ?? null,
     isToday: date === todayIL(),
+    multiCenter,
+    centers,
   };
 }
 

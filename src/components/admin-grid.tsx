@@ -11,6 +11,7 @@ import { fmtMin, slotToMin, addDays, dowOf, SLOT_MIN, type SlotBounds } from "@/
 import { fmtDateHe, nowMinutesIL } from "@/lib/dates";
 import { GridCellSheet } from "@/components/grid-cell-sheet";
 import { StaffBookSheet } from "@/components/staff-book-sheet";
+import { setMyPrimaryCenter } from "@/actions/account";
 import { Avatar } from "@/components/ui";
 import { BoardSearch } from "@/components/board-search";
 import { cellStyle } from "@/lib/palette";
@@ -48,6 +49,7 @@ export type GridRoom = {
   isLarge: boolean;
   isGroupRoom: boolean;
   isPool: boolean;
+  centerId?: string | null;
   cells: GridCell[];
 };
 
@@ -59,7 +61,7 @@ export function AdminGrid({
   date,
   activeDays,
   bounds,
-  rooms,
+  rooms: allRooms,
   users,
   isToday,
   onLeave = [],
@@ -68,6 +70,10 @@ export function AdminGrid({
   bookable = false,
   basePath = "/admin",
   roomWeek = false,
+  multiCenter = false,
+  centers = [],
+  primaryCenterId = null,
+  rememberCenter = false,
 }: {
   date: string;
   activeDays: number[];
@@ -82,11 +88,35 @@ export function AdminGrid({
   basePath?: string;
   /** allow clicking a room header to open its weekly view (auth-only surfaces) */
   roomWeek?: boolean;
+  /** multi-site mode: center switcher chips + per-room filtering */
+  multiCenter?: boolean;
+  centers?: { id: string; name: string }[];
+  primaryCenterId?: string | null;
+  /** persist the chosen center as the user's default (logged-in surfaces only) */
+  rememberCenter?: boolean;
 }) {
   const nSlots = (bounds.dayEndMin - bounds.dayStartMin) / SLOT_MIN;
   const router = useRouter();
   const [selected, setSelected] = useState<{ room: GridRoom; slot: number } | null>(null);
   const [bookSlot, setBookSlot] = useState<{ room: GridRoom; slot: number } | null>(null);
+
+  // multi-center: which site's rooms to show; opens on the user's saved center
+  const centersOn = multiCenter && centers.length > 0;
+  const [centerId, setCenterId] = useState<string>(
+    primaryCenterId && centers.some((c) => c.id === primaryCenterId) ? primaryCenterId : "all"
+  );
+  const pickCenter = (id: string) => {
+    setCenterId(id);
+    // remember as this user's default board (fire-and-forget)
+    if (rememberCenter) void setMyPrimaryCenter(id === "all" ? null : id);
+  };
+  const rooms = useMemo(
+    () =>
+      centersOn && centerId !== "all"
+        ? allRooms.filter((r) => !r.centerId || r.centerId === centerId)
+        : allRooms,
+    [allRooms, centersOn, centerId]
+  );
   // long-leave ghosts are hidden by default — the room is simply free.
   // Admins can reveal them on demand; the staff board never shows them.
   const [showGhosts, setShowGhosts] = useState(false);
@@ -169,6 +199,37 @@ export function AdminGrid({
           <ChevronLeft size={18} />
         </Button>
       </div>
+
+      {/* multi-center: switch between sites; the choice is remembered per user */}
+      {centersOn && (
+        <div className="grid-scroll flex gap-1.5 overflow-x-auto pb-0.5">
+          {centers.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => pickCenter(c.id)}
+              className={cn(
+                "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                centerId === c.id
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-card hover:bg-muted"
+              )}
+            >
+              {c.name}
+            </button>
+          ))}
+          <button
+            onClick={() => pickCenter("all")}
+            className={cn(
+              "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+              centerId === "all"
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-card text-muted-foreground hover:bg-muted"
+            )}
+          >
+            כל המרכזים
+          </button>
+        </div>
+      )}
 
       {/* weekly print: admin grid + staff board (not the public share link) */}
       {(!readOnly || bookable) && (
@@ -313,15 +374,22 @@ export function AdminGrid({
                   // boundary between two adjacent occupied segments — draw a light
                   // divider so same-colored neighbors (e.g. two labels) don't blend
                   const segBoundary = segStart && prev?.type === "occupied";
-                  const ghostSegStart =
+                  // any freed cell shows who vacated it at the segment start
+                  const freedSegStart =
                     cell.type === "freed" &&
-                    cell.inactive &&
                     (!prev || prev.type !== "freed" || prev.userId !== cell.userId);
                   const bookableCell = bookable && (cell.type === "free" || cell.type === "freed");
                   const clickable = (!readOnly && cell.type !== "closed") || bookableCell;
                   return (
                     <td
                       key={r.id}
+                      title={
+                        cell.type === "freed"
+                          ? cell.inactive
+                            ? `${cell.name} בחופשה ארוכה — החדר פנוי`
+                            : `פונה על ידי ${cell.name} — פנוי להזמנה`
+                          : undefined
+                      }
                       onClick={() => {
                         if (bookableCell) setBookSlot({ room: r, slot });
                         else if (!readOnly && cell.type !== "closed") setSelected({ room: r, slot });
@@ -359,8 +427,13 @@ export function AdminGrid({
                           {!cell.second && cell.source === "booking" ? " ·חד״פ" : ""}
                         </span>
                       )}
-                      {ghostSegStart && (
-                        <span className="block truncate px-1 text-[10px] text-muted-foreground/70">
+                      {freedSegStart && cell.type === "freed" && (
+                        <span
+                          className={cn(
+                            "block truncate px-1 text-[10px] text-muted-foreground/70",
+                            !cell.inactive && "line-through"
+                          )}
+                        >
                           {cell.name}
                         </span>
                       )}
@@ -397,7 +470,7 @@ export function AdminGrid({
           room={selected.room}
           slot={selected.slot}
           users={users}
-          rooms={rooms}
+          rooms={allRooms} // moves may cross centers
           bounds={bounds}
           onClose={() => setSelected(null)}
         />

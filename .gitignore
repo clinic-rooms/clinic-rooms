@@ -43,3 +43,4 @@ next-env.d.ts
 # installer wizard — local progress + credentials summary, never committed
 /setup/.setup-state.json
 SETUP_SUMMARY.txt
+scripts/absences-backup.json

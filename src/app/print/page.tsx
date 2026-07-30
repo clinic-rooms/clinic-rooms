@@ -21,11 +21,16 @@ export default async function PrintPage() {
   const days: PrintDay[] = [];
   for (const date of dates) {
     const grid = await buildGridForDate(date);
+    const centerName = new Map(grid.centers.map((c) => [c.id, c.name]));
     days.push({
       date,
       closure: grid.closure,
       rooms: grid.rooms.map((r) => ({
-        name: r.name,
+        // multi-center: the center name rides along so the printout stays readable
+        name:
+          grid.multiCenter && r.centerId && centerName.has(r.centerId)
+            ? `${r.name} · ${centerName.get(r.centerId)}`
+            : r.name,
         cells: r.cells.map((c) =>
           c.type === "occupied"
             ? { name: c.name + (c.second ? ` +${c.second.name}` : ""), color: c.color }

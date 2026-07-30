@@ -32,9 +32,10 @@ export async function listClosures(): Promise<ClosureRow[]> {
 
   const rows = new Map<string, ClosureRow>();
 
-  // auto-detected holidays for the next ~14 months
-  for (const { date, closure } of upcomingHolidays(today, cfg.dayEndMin, 14)) {
-    rows.set(date, { date, type: closure.type, endMin: closure.endMin, label: closure.label, source: "auto" });
+  // auto-detected holidays for the next ~14 months (incl. "open" markable
+  // days like chol hamoed and erev Yom HaZikaron)
+  for (const h of upcomingHolidays(today, cfg.dayEndMin, 14)) {
+    rows.set(h.date, { date: h.date, type: h.type, endMin: h.endMin, label: h.label, source: "auto" });
   }
 
   // apply / add overrides (manual closures or changes to detected ones)

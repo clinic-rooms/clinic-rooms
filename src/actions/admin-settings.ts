@@ -78,6 +78,61 @@ export async function setAnthropicKey(key: string | null): Promise<ActionResult>
   return { ok: true };
 }
 
+// ---------- multi-center mode ----------
+
+/** Toggle multi-site mode. Off = the app behaves exactly as a single clinic. */
+export async function setMultiCenter(enabled: boolean): Promise<ActionResult> {
+  await requireAdmin();
+  const row = await ensureSettingsRow();
+  await db.update(t.clinicSettings).set({ multiCenter: enabled }).where(eq(t.clinicSettings.id, row.id));
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/rooms");
+  revalidatePath("/admin");
+  revalidatePath("/board");
+  return { ok: true };
+}
+
+const centerNameSchema = z.string().min(1).max(40);
+
+export async function createCenter(name: string): Promise<ActionResult<{ id: string }>> {
+  const parsed = centerNameSchema.safeParse(name.trim());
+  if (!parsed.success) return { error: "שם מרכז לא תקין" };
+  await requireAdmin();
+  const existing = await db.select().from(t.centers);
+  const [row] = await db
+    .insert(t.centers)
+    .values({ name: parsed.data, sortOrder: existing.length })
+    .returning();
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/rooms");
+  return { ok: true, id: row.id };
+}
+
+export async function renameCenter(id: string, name: string): Promise<ActionResult> {
+  const parsed = centerNameSchema.safeParse(name.trim());
+  if (!parsed.success) return { error: "שם מרכז לא תקין" };
+  await requireAdmin();
+  await db.update(t.centers).set({ name: parsed.data }).where(eq(t.centers.id, id));
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/rooms");
+  revalidatePath("/admin");
+  revalidatePath("/board");
+  return { ok: true };
+}
+
+/** Delete a center — only when no rooms are assigned to it. */
+export async function deleteCenter(id: string): Promise<ActionResult> {
+  await requireAdmin();
+  const assigned = await db.select({ id: t.rooms.id }).from(t.rooms).where(eq(t.rooms.centerId, id));
+  if (assigned.length > 0) {
+    return { error: `יש ${assigned.length} חדרים משויכים למרכז — יש להעביר אותם קודם למרכז אחר` };
+  }
+  await db.delete(t.centers).where(eq(t.centers.id, id));
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/rooms");
+  return { ok: true };
+}
+
 export async function updateSettings(
   input: z.infer<typeof schema>
 ): Promise<ActionResult<{ needsConfirm?: boolean; affected?: number }>> {

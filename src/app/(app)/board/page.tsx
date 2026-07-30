@@ -1,3 +1,6 @@
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import * as t from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth/session";
 import { buildGridForDate } from "@/lib/schedule/grid";
 import { AdminGrid } from "@/components/admin-grid";
@@ -10,9 +13,23 @@ export default async function BoardPage({
 }: {
   searchParams: Promise<{ date?: string }>;
 }) {
-  await requireUser();
+  const session = await requireUser();
   const params = await searchParams;
   const grid = await buildGridForDate(params.date);
+  const [me] = await db
+    .select({ primaryCenterId: t.user.primaryCenterId })
+    .from(t.user)
+    .where(eq(t.user.id, session.user.id));
   // read-only for editing, but staff can click a free slot to book it
-  return <AdminGrid {...grid} readOnly bookable roomWeek basePath="/board" />;
+  return (
+    <AdminGrid
+      {...grid}
+      readOnly
+      bookable
+      roomWeek
+      rememberCenter
+      primaryCenterId={me?.primaryCenterId ?? null}
+      basePath="/board"
+    />
+  );
 }

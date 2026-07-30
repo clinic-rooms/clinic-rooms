@@ -33,6 +33,8 @@ const searchSchema = z
     wantWindow: z.boolean().optional(),
     wantSink: z.boolean().optional(),
     wantLarge: z.boolean().optional(),
+    // multi-center: limit the search to one center (omit = all centers)
+    centerId: z.string().uuid().optional(),
   })
   .refine((v) => v.endMin > v.startMin, { message: "טווח שעות הפוך" });
 
@@ -71,7 +73,13 @@ export async function searchBooking(input: z.infer<typeof searchSchema>): Promis
   if (windowErr) return { error: windowErr };
   const ctx = buildScoringContext(dataset, session.user.id, dowOf(date), todayIL());
 
-  const filters = sessionType === "group" ? { isGroupRoom: true } : undefined;
+  const filters =
+    sessionType === "group" || parsed.data.centerId
+      ? {
+          ...(sessionType === "group" ? { isGroupRoom: true } : {}),
+          ...(parsed.data.centerId ? { centerId: parsed.data.centerId } : {}),
+        }
+      : undefined;
   const preferences = {
     hasWindow: parsed.data.wantWindow,
     hasSink: parsed.data.wantSink,

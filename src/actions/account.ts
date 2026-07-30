@@ -20,6 +20,16 @@ export async function clearMustSetPassword() {
   return { ok: true };
 }
 
+/** Remember which center's board this user wants to see by default (multi-center mode). */
+export async function setMyPrimaryCenter(centerId: string | null) {
+  const session = await requireUser();
+  await db
+    .update(user)
+    .set({ primaryCenterId: centerId })
+    .where(eq(user.id, session.user.id));
+  return { ok: true };
+}
+
 /** Records that the user saw the "what's new" dialog for the current version. */
 export async function markVersionSeen(version: string): Promise<{ ok: boolean }> {
   const session = await requireUser();

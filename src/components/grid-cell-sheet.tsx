@@ -12,15 +12,17 @@ import {
   adminCreateBooking,
   upsertAssignment,
   endAssignment,
+  reopenAssignment,
   deleteAssignment,
   scheduleAssignmentMove,
+  undoAssignmentMove,
   updateAssignmentHours,
   upsertLabel,
   deleteLabel,
 } from "@/actions/admin-schedule";
-import { createAbsence } from "@/actions/absences";
-import { createReduction } from "@/actions/reductions";
-import { cancelBooking } from "@/actions/bookings";
+import { createAbsence, deleteAbsence } from "@/actions/absences";
+import { createReduction, deleteReduction } from "@/actions/reductions";
+import { cancelBooking, restoreBooking } from "@/actions/bookings";
 import type { GridRoom, GridUser, GridCell } from "@/components/admin-grid";
 
 function hoursOf(bounds: SlotBounds): number[] {
@@ -29,7 +31,12 @@ function hoursOf(bounds: SlotBounds): number[] {
   return out;
 }
 
-type RunFn = (fn: () => Promise<{ ok?: boolean; error?: string }>) => void;
+type ActionRes = { ok?: boolean; error?: string } & Record<string, unknown>;
+/** Runs an action; if `undoOf` derives an inverse from the result, the toast gets an undo button. */
+type RunFn = (
+  fn: () => Promise<ActionRes>,
+  undoOf?: (res: ActionRes) => (() => Promise<{ ok?: boolean; error?: string }>) | null
+) => void;
 
 export function GridCellSheet({
   date,
@@ -63,12 +70,29 @@ export function GridCellSheet({
   const [labelText, setLabelText] = useState("");
   const [labelRecurring, setLabelRecurring] = useState(false);
 
-  const run: RunFn = (fn) => {
+  const run: RunFn = (fn, undoOf) => {
     startTransition(async () => {
       const res = await fn();
-      if ("error" in res && res.error) toast.error(res.error);
+      if (res.error) toast.error(res.error);
       else {
-        toast.success("בוצע");
+        const undo = undoOf?.(res);
+        toast.success("בוצע", {
+          duration: undo ? 8000 : 4000,
+          action: undo
+            ? {
+                label: "ביטול",
+                onClick: () => {
+                  void undo().then((r) => {
+                    if (r?.error) toast.error(r.error);
+                    else {
+                      toast.success("הפעולה בוטלה");
+                      router.refresh();
+                    }
+                  });
+                },
+              }
+            : undefined,
+        });
         onClose();
         router.refresh();
       }
@@ -138,17 +162,19 @@ export function GridCellSheet({
                   className="w-full"
                   disabled={pending || labelText.trim().length < 1}
                   onClick={() =>
-                    run(() =>
-                      upsertLabel({
-                        roomId: room.id,
-                        text: labelText.trim(),
-                        recurring: labelRecurring,
-                        date: labelRecurring ? null : date,
-                        dayOfWeek: labelRecurring ? dowOf(date) : null,
-                        startMin,
-                        endMin,
-                        effectiveFrom: labelRecurring ? date : null,
-                      })
+                    run(
+                      () =>
+                        upsertLabel({
+                          roomId: room.id,
+                          text: labelText.trim(),
+                          recurring: labelRecurring,
+                          date: labelRecurring ? null : date,
+                          dayOfWeek: labelRecurring ? dowOf(date) : null,
+                          startMin,
+                          endMin,
+                          effectiveFrom: labelRecurring ? date : null,
+                        }),
+                      (res) => (res.labelId ? () => deleteLabel(String(res.labelId)) : null)
                     )
                   }
                 >
@@ -172,18 +198,25 @@ export function GridCellSheet({
                   className="w-full"
                   disabled={pending || !userId}
                   onClick={() =>
-                    run(() =>
-                      mode === "booking"
-                        ? adminCreateBooking({ userId, roomId: room.id, date, startMin, endMin, kind: "regular" })
-                        : upsertAssignment({
-                            userId,
-                            roomId: room.id,
-                            dayOfWeek: dowOf(date),
-                            startMin,
-                            endMin,
-                            effectiveFrom: date,
-                            kind: "regular",
-                          })
+                    run(
+                      () =>
+                        mode === "booking"
+                          ? adminCreateBooking({ userId, roomId: room.id, date, startMin, endMin, kind: "regular" })
+                          : upsertAssignment({
+                              userId,
+                              roomId: room.id,
+                              dayOfWeek: dowOf(date),
+                              startMin,
+                              endMin,
+                              effectiveFrom: date,
+                              kind: "regular",
+                            }),
+                      (res) =>
+                        res.bookingId
+                          ? () => cancelBooking(String(res.bookingId))
+                          : res.assignmentId
+                            ? () => deleteAssignment(String(res.assignmentId))
+                            : null
                     )
                   }
                 >
@@ -287,6 +320,7 @@ function OccupiedView({
   const [vacStart, setVacStart] = useState(clickedMin);
   const [vacEnd, setVacEnd] = useState(Math.min(clickedMin + 30, bounds.dayEndMin));
   const [vacRecurring, setVacRecurring] = useState(false);
+  const [vacWholeDay, setVacWholeDay] = useState(false);
 
   const isLabel = cell.source === "label";
 
@@ -317,7 +351,12 @@ function OccupiedView({
             <p className="text-xs text-amber-700 dark:text-amber-300">שיבוץ כפול באותו חדר</p>
           </div>
           {cell.second.source === "booking" && (
-            <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(() => cancelBooking(cell.second!.refId))}>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={pending}
+              onClick={() => run(() => cancelBooking(cell.second!.refId), () => () => restoreBooking(cell.second!.refId))}
+            >
               הסרה
             </Button>
           )}
@@ -326,16 +365,59 @@ function OccupiedView({
 
       {/* primary destructive action per source */}
       {isLabel ? (
-        <Button variant="destructive" className="w-full" disabled={pending} onClick={() => run(() => deleteLabel(cell.refId))}>
+        <Button
+          variant="destructive"
+          className="w-full"
+          disabled={pending}
+          onClick={() =>
+            run(
+              () => deleteLabel(cell.refId),
+              (res) => {
+                const d = res.deleted as {
+                  roomId: string; text: string; date: string | null; dayOfWeek: number | null;
+                  startMin: number; endMin: number; effectiveFrom: string | null; color: string;
+                } | undefined;
+                if (!d) return null;
+                return () =>
+                  upsertLabel({
+                    roomId: d.roomId,
+                    text: d.text,
+                    recurring: d.dayOfWeek != null,
+                    date: d.date,
+                    dayOfWeek: d.dayOfWeek,
+                    startMin: d.startMin,
+                    endMin: d.endMin,
+                    effectiveFrom: d.effectiveFrom,
+                    color: d.color as `#${string}`,
+                  });
+              }
+            )
+          }
+        >
           מחיקת הטקסט
         </Button>
       ) : cell.source === "booking" ? (
-        <Button variant="destructive" className="w-full" disabled={pending} onClick={() => run(() => cancelBooking(cell.refId))}>
+        <Button
+          variant="destructive"
+          className="w-full"
+          disabled={pending}
+          onClick={() => run(() => cancelBooking(cell.refId), () => () => restoreBooking(cell.refId))}
+        >
           ביטול השיבוץ החד־פעמי
         </Button>
       ) : (
         <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" disabled={pending} onClick={() => run(() => endAssignment(cell.refId, date))}>
+          <Button
+            variant="outline"
+            className="flex-1"
+            disabled={pending}
+            onClick={() =>
+              run(
+                () => endAssignment(cell.refId, date),
+                (res) => () => reopenAssignment(cell.refId, (res.prevEffectiveTo as string | null) ?? null)
+              )
+            }
+          >
             סיום השיבוץ מהיום
           </Button>
           <Button
@@ -356,7 +438,7 @@ function OccupiedView({
         <div className="rounded-xl border border-primary/30 bg-accent/10 p-3">
           <button className="flex w-full items-center gap-1.5 text-sm font-medium" onClick={() => setShowVacate(!showVacate)}>
             <Scissors size={15} className="text-primary" />
-            פינוי שעות מהחדר (שאר היום נשאר)
+            פינוי שעות / היעדרות (חד־פעמי או קבוע)
           </button>
           {showVacate && (
             <div className="mt-3 space-y-2">
@@ -371,36 +453,67 @@ function OccupiedView({
               <p className="text-xs text-muted-foreground">
                 {vacRecurring
                   ? `החדר יתפנה בקביעות בכל יום ${DAY_NAMES[dowOf(date)]} בשעות שתבחרו (למשל קבוצה קבועה בחדר אחר) — שאר השיבוץ נשאר.`
-                  : `רק החלון שתבחרו יתפנה בתאריך זה — שאר השיבוץ של ${cell.name} נשאר ללא שינוי.`}
+                  : vacWholeDay
+                    ? `היעדרות מלאה של ${cell.name} בתאריך זה (מחלה/חופש) — כל החדרים שלו/ה יתפנו ליום.`
+                    : `רק החלון שתבחרו יתפנה בתאריך זה — שאר השיבוץ של ${cell.name} נשאר ללא שינוי.`}
               </p>
-              <HoursPicker hours={hours} startMin={vacStart} setStartMin={setVacStart} endMin={vacEnd} setEndMin={setVacEnd} />
+              {!vacRecurring && (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={vacWholeDay}
+                    onChange={(e) => setVacWholeDay(e.target.checked)}
+                    className="h-4 w-4 accent-[var(--primary)]"
+                  />
+                  היעדרות של יום שלם
+                </label>
+              )}
+              {!(vacWholeDay && !vacRecurring) && (
+                <HoursPicker hours={hours} startMin={vacStart} setStartMin={setVacStart} endMin={vacEnd} setEndMin={setVacEnd} />
+              )}
               <Button
                 className="w-full"
                 size="sm"
                 disabled={pending}
                 onClick={() =>
-                  run(() =>
-                    vacRecurring
-                      ? createReduction({
+                  run(
+                    async () => {
+                      if (vacRecurring)
+                        return createReduction({
                           userId: cell.userId,
                           dayOfWeek: dowOf(date),
                           startMin: vacStart,
                           endMin: vacEnd,
                           effectiveFrom: date,
                           note: "פונה על ידי הניהול",
-                        })
-                      : createAbsence({
-                          userId: cell.userId,
-                          dateFrom: date,
-                          dateTo: date,
-                          startMin: vacStart,
-                          endMin: vacEnd,
-                          note: "פונה על ידי הניהול",
-                        })
+                        });
+                      const input = {
+                        userId: cell.userId,
+                        dateFrom: date,
+                        dateTo: date,
+                        startMin: vacWholeDay ? null : vacStart,
+                        endMin: vacWholeDay ? null : vacEnd,
+                        note: vacWholeDay ? "היעדרות שסומנה על ידי הניהול" : "פונה על ידי הניהול",
+                      };
+                      const res = await createAbsence(input);
+                      if (res.conflict) {
+                        const c = res.conflict;
+                        if (c.kind === "covered")
+                          return { error: `כבר מעודכנת ל${cell.name} היעדרות/חופשה בתאריך זה — אין צורך להזין שוב` };
+                        if (confirm(`ל${cell.name} כבר מעודכנת חופשה סמוכה. לאחד לרצף אחד?`))
+                          return createAbsence({ ...input, merge: true });
+                        return { error: "הפעולה בוטלה" };
+                      }
+                      return res;
+                    },
+                    (res) =>
+                      res.id && !res.merged
+                        ? () => (vacRecurring ? deleteReduction(String(res.id)) : deleteAbsence(String(res.id)))
+                        : null
                   )
                 }
               >
-                {vacRecurring ? "פינוי קבוע של השעות" : "פינוי השעות ליום זה"}
+                {vacRecurring ? "פינוי קבוע של השעות" : vacWholeDay ? "סימון היעדרות ליום שלם" : "פינוי השעות ליום זה"}
               </Button>
             </div>
           )}
@@ -424,7 +537,15 @@ function OccupiedView({
                 className="w-full"
                 size="sm"
                 disabled={pending}
-                onClick={() => run(() => updateAssignmentHours(cell.refId, editStart, editEnd))}
+                onClick={() =>
+                  run(
+                    () => updateAssignmentHours(cell.refId, editStart, editEnd),
+                    (res) =>
+                      res.prevStartMin != null
+                        ? () => updateAssignmentHours(cell.refId, Number(res.prevStartMin), Number(res.prevEndMin))
+                        : null
+                  )
+                }
               >
                 שמירת השעות החדשות
               </Button>
@@ -472,15 +593,25 @@ function OccupiedView({
                 size="sm"
                 disabled={pending || !/^\d{4}-\d{2}-\d{2}$/.test(moveDate)}
                 onClick={() =>
-                  run(() =>
-                    scheduleAssignmentMove({
-                      assignmentId: cell.refId,
-                      fromDate: moveDate,
-                      newRoomId: moveRoomId,
-                      newDayOfWeek: moveDow,
-                      newStartMin: moveStart,
-                      newEndMin: moveEnd,
-                    })
+                  run(
+                    () =>
+                      scheduleAssignmentMove({
+                        assignmentId: cell.refId,
+                        fromDate: moveDate,
+                        newRoomId: moveRoomId,
+                        newDayOfWeek: moveDow,
+                        newStartMin: moveStart,
+                        newEndMin: moveEnd,
+                      }),
+                    (res) =>
+                      res.newAssignmentId
+                        ? () =>
+                            undoAssignmentMove({
+                              assignmentId: cell.refId,
+                              prevEffectiveTo: (res.prevEffectiveTo as string | null) ?? null,
+                              newAssignmentId: String(res.newAssignmentId),
+                            })
+                        : null
                   )
                 }
               >
@@ -523,8 +654,10 @@ function OccupiedView({
                 size="sm"
                 disabled={pending || !pairUserId}
                 onClick={() =>
-                  run(() =>
-                    adminCreateBooking({ userId: pairUserId, roomId: room.id, date, startMin: pairStart, endMin: pairEnd, kind: "regular" })
+                  run(
+                    () =>
+                      adminCreateBooking({ userId: pairUserId, roomId: room.id, date, startMin: pairStart, endMin: pairEnd, kind: "regular" }),
+                    (res) => (res.bookingId ? () => cancelBooking(String(res.bookingId)) : null)
                   )
                 }
               >

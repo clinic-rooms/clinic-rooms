@@ -28,6 +28,14 @@ export default async function SettingsPage() {
   const closures = await listClosures();
   const bounds = { dayStartMin: settings.dayStartMin, dayEndMin: settings.dayEndMin };
 
+  const centerRows = await db.select().from(t.centers).orderBy(t.centers.sortOrder);
+  const allRooms = await db.select({ centerId: t.rooms.centerId }).from(t.rooms).where(eq(t.rooms.isActive, true));
+  const centers = centerRows.map((c) => ({
+    id: c.id,
+    name: c.name,
+    roomCount: allRooms.filter((r) => r.centerId === c.id).length,
+  }));
+
   return (
     <div className="space-y-4">
       <SettingsScreen
@@ -42,6 +50,8 @@ export default async function SettingsPage() {
         hasApiKey={hasApiKey}
         keySource={source}
         updateSetupUrl={updateSetupUrl()}
+        multiCenter={settings.multiCenter}
+        centers={centers}
       />
       <div className="mx-auto max-w-md space-y-4">
         <ClosuresManager closures={closures} today={todayIL()} bounds={bounds} />

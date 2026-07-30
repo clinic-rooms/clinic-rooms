@@ -8,7 +8,8 @@ import { Button, Card, Input, Label, Select, Badge, Avatar } from "@/components/
 import { DateField } from "@/components/date-field";
 import { cn } from "@/lib/utils";
 import { createStaffUser, updateStaffUser, resetUserPassword, deleteStaffUser } from "@/actions/admin-users";
-import { createAbsence } from "@/actions/absences";
+import { createAbsence, deleteAbsence } from "@/actions/absences";
+import { fmtDateShort } from "@/lib/dates";
 import { PALETTE_COLORS as COLORS, PATTERNS } from "@/lib/palette";
 
 const TIER_LABEL: Record<string, string> = {
@@ -383,19 +384,58 @@ function VacationForm({ user, today, onClose }: { user: Staff; today: string; on
 
   function submit() {
     startTransition(async () => {
-      const res = await createAbsence({
+      const input = {
         userId: user.id,
         dateFrom,
         dateTo: dateTo < dateFrom ? dateFrom : dateTo,
         startMin: null,
         endMin: null,
         note: note || undefined,
-      });
+      };
+      let res = await createAbsence(input);
+      if (res.conflict) {
+        const c = res.conflict;
+        if (c.kind === "covered") {
+          toast.info(
+            `החופשה של ${user.name} כבר מעודכנת במערכת (${fmtDateShort(c.existingFrom)} – ${fmtDateShort(c.existingTo)}) — אין צורך להזין שוב`
+          );
+          onClose();
+          return;
+        }
+        const ok = confirm(
+          `ל${user.name} כבר מעודכנת חופשה ${fmtDateShort(c.existingFrom)} – ${fmtDateShort(c.existingTo)}.\nלעדכן אותה לטווח המלא ${fmtDateShort(c.unionFrom)} – ${fmtDateShort(c.unionTo)}?`
+        );
+        if (!ok) return;
+        res = await createAbsence({ ...input, merge: true });
+      }
       if ("error" in res && res.error) {
         toast.error(res.error);
         return;
       }
-      toast.success(`חופשה נרשמה ל${user.name} — נשלחה התראה`);
+      if (res.merged) {
+        toast.success(`החופשה הקיימת של ${user.name} עודכנה לטווח המלא — נשלחה התראה`);
+        onClose();
+        router.refresh();
+        return;
+      }
+      const absenceId = (res as { id?: string }).id;
+      toast.success(`חופשה נרשמה ל${user.name} — נשלחה התראה`, {
+        duration: 8000,
+        action: absenceId
+          ? {
+              label: "ביטול",
+              onClick: () => {
+                void deleteAbsence(absenceId).then((r) => {
+                  if (r?.error) toast.error(r.error);
+                  else {
+                    toast.success("החופשה בוטלה");
+                    router.refresh();
+                  }
+                });
+              },
+            }
+          : undefined,
+      });
       onClose();
       router.refresh();
     });

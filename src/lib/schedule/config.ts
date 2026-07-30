@@ -12,6 +12,7 @@ export type ClinicSettings = {
   shareToken: string | null;
   aiEnabled: boolean;
   setupComplete: boolean;
+  multiCenter: boolean;
 };
 
 const DEFAULTS: ClinicSettings = {
@@ -22,6 +23,7 @@ const DEFAULTS: ClinicSettings = {
   shareToken: null,
   aiEnabled: true,
   setupComplete: false,
+  multiCenter: false,
 };
 
 /**
@@ -40,6 +42,7 @@ export const getClinicSettings = cache(async (): Promise<ClinicSettings> => {
     shareToken: row.shareToken ?? null,
     aiEnabled: row.aiEnabled ?? true,
     setupComplete: row.setupComplete ?? false,
+    multiCenter: row.multiCenter ?? false,
   };
 });
 

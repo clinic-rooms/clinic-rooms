@@ -107,9 +107,12 @@ export function RoomWeek({
                       // free-text labels all share userId "" — split segments by the label row
                       ((cell.source === "label" || prev.source === "label") && prev.refId !== cell.refId));
                   const segBoundary = segStart && prev?.type === "occupied";
+                  const freedSegStart =
+                    cell.type === "freed" && (!prev || prev.type !== "freed" || prev.userId !== cell.userId);
                   return (
                     <td
                       key={d.date}
+                      title={cell.type === "freed" ? `פונה על ידי ${cell.name}` : undefined}
                       className={cn(
                         "h-6 border-b border-l border-border/60 p-0 text-center align-middle",
                         cell.type === "closed" && "bg-muted/60",
@@ -124,6 +127,11 @@ export function RoomWeek({
                         <span className="block truncate px-1 text-[10px] font-semibold" style={{ color: "white" }}>
                           {cell.name}
                           {cell.second ? ` + ${cell.second.name}` : ""}
+                        </span>
+                      )}
+                      {freedSegStart && cell.type === "freed" && (
+                        <span className="block truncate px-1 text-[10px] text-muted-foreground/70 line-through">
+                          {cell.name}
                         </span>
                       )}
                     </td>

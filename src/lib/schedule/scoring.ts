@@ -110,6 +110,7 @@ export function rankFreeRooms(
     if (filters?.hasWindow && !rd.room.hasWindow) continue;
     if (filters?.isLarge && !rd.room.isLarge) continue;
     if (filters?.isGroupRoom && !rd.room.isGroupRoom) continue;
+    if (filters?.centerId && rd.room.centerId && rd.room.centerId !== filters.centerId) continue;
     out.push(scoreRoom(rd.room, ctx, { schedule, preferences: opts.preferences }));
   }
   out.sort((a, b) => b.score - a.score || a.room.sortOrder - b.room.sortOrder);

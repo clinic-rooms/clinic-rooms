@@ -43,19 +43,26 @@ type RoomRow = {
   isLarge: boolean;
   notes: string | null;
   isActive: boolean;
+  centerId: string | null;
   windows: Window[];
 };
+
+type CenterOpt = { id: string; name: string };
 
 export function RoomsScreen({
   rooms,
   today,
   bounds,
   activeDays,
+  multiCenter = false,
+  centers = [],
 }: {
   rooms: RoomRow[];
   today: string;
   bounds: SlotBounds;
   activeDays: number[];
+  multiCenter?: boolean;
+  centers?: CenterOpt[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -88,6 +95,8 @@ export function RoomsScreen({
           today={today}
           bounds={bounds}
           activeDays={activeDays}
+          multiCenter={multiCenter}
+          centers={centers}
           onClose={() => setEditing(null)}
         />
       )}
@@ -106,6 +115,11 @@ export function RoomsScreen({
                   {room.isPool && <Layers size={14} className="text-muted-foreground" />}
                 </div>
                 <div className="mt-1 flex flex-wrap gap-1">
+                  {multiCenter && (
+                    <Badge variant="outline">
+                      {centers.find((c) => c.id === room.centerId)?.name ?? "כל המרכזים"}
+                    </Badge>
+                  )}
                   {room.isGroupRoom && <Badge>חדר קבוצות</Badge>}
                   {room.isPool && <Badge variant="outline">חדר חיצוני</Badge>}
                   {!room.isActive && <Badge variant="warn">מושבת</Badge>}
@@ -141,12 +155,16 @@ function RoomForm({
   today,
   bounds,
   activeDays,
+  multiCenter,
+  centers,
   onClose,
 }: {
   room: RoomRow | null;
   today: string;
   bounds: SlotBounds;
   activeDays: number[];
+  multiCenter: boolean;
+  centers: CenterOpt[];
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -154,6 +172,7 @@ function RoomForm({
   const HOURS = hoursOf(bounds);
 
   const [name, setName] = useState(room?.name ?? "");
+  const [centerId, setCenterId] = useState<string>(room?.centerId ?? "");
   const [hasWindow, setHasWindow] = useState(room?.hasWindow ?? false);
   const [hasSink, setHasSink] = useState(room?.hasSink ?? false);
   const [isLarge, setIsLarge] = useState(room?.isLarge ?? false);
