@@ -9,7 +9,7 @@
  * once, in a dismissible "מה חדש" dialog.
  */
 
-export const APP_VERSION = "1.1.1";
+export const APP_VERSION = "1.1.2";
 
 export type ChangelogEntry = {
   version: string;
@@ -20,6 +20,13 @@ export type ChangelogEntry = {
 };
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.1.2",
+    date: "31/07/2026",
+    notes: [
+      "תוקן: במצב רב־מרכזי לא הופיעה בחירת המרכז בטופס החדר — כעת אפשר לשייך חדר למרכז גם מהטופס וגם ישירות מכרטיס החדר",
+    ],
+  },
   {
     version: "1.1.1",
     date: "31/07/2026",

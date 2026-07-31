@@ -17,7 +17,7 @@ import {
 import { Button, Card, Input, Label, Select, Badge } from "@/components/ui";
 import { fmtMin, DAY_NAMES, SLOT_MIN, type SlotBounds } from "@/lib/schedule/slots";
 import { cn } from "@/lib/utils";
-import { upsertRoom, setAvailabilityWindows, setRoomActive } from "@/actions/admin-rooms";
+import { upsertRoom, setAvailabilityWindows, setRoomActive, setRoomCenter } from "@/actions/admin-rooms";
 
 function hoursOf(bounds: SlotBounds): number[] {
   const out: number[] = [];
@@ -79,6 +79,18 @@ export function RoomsScreen({
     });
   }
 
+  function assignCenter(room: RoomRow, centerId: string) {
+    startTransition(async () => {
+      const res = await setRoomCenter(room.id, centerId || null);
+      if (res.error) toast.error(res.error);
+      else {
+        const name = centers.find((c) => c.id === centerId)?.name;
+        toast.success(name ? `${room.name} שויך ל${name}` : `${room.name} יופיע בכל המרכזים`);
+        router.refresh();
+      }
+    });
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -114,11 +126,22 @@ export function RoomsScreen({
                   {room.isGroupRoom && <Users size={14} className="text-amber-500" />}
                   {room.isPool && <Layers size={14} className="text-muted-foreground" />}
                 </div>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {multiCenter && (
-                    <Badge variant="outline">
-                      {centers.find((c) => c.id === room.centerId)?.name ?? "כל המרכזים"}
-                    </Badge>
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  {multiCenter && centers.length > 0 && (
+                    <Select
+                      className="h-7 w-auto min-w-28 rounded-lg px-2 text-xs"
+                      value={room.centerId ?? ""}
+                      disabled={pending}
+                      onChange={(e) => assignCenter(room, e.target.value)}
+                      aria-label={`מרכז עבור ${room.name}`}
+                    >
+                      <option value="">כל המרכזים</option>
+                      {centers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </Select>
                   )}
                   {room.isGroupRoom && <Badge>חדר קבוצות</Badge>}
                   {room.isPool && <Badge variant="outline">חדר חיצוני</Badge>}
@@ -214,6 +237,7 @@ function RoomForm({
         isGroupRoom,
         isPool,
         notes: notes || undefined,
+        centerId: multiCenter ? centerId || null : undefined,
       });
       if ("error" in res && res.error) {
         toast.error(res.error);
@@ -245,6 +269,19 @@ function RoomForm({
         <CheckRow label="חדר קבוצות" checked={isGroupRoom} onChange={setIsGroupRoom} />
         <CheckRow label="חדר חיצוני" checked={isPool} onChange={setIsPool} />
       </div>
+      {multiCenter && (
+        <div>
+          <Label>מרכז</Label>
+          <Select value={centerId} onChange={(e) => setCenterId(e.target.value)}>
+            <option value="">כל המרכזים (ללא שיוך)</option>
+            {centers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
       <div>
         <Label>הערות</Label>
         <Input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={200} />

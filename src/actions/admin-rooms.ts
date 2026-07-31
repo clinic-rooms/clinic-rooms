@@ -88,6 +88,20 @@ export async function setAvailabilityWindows(
   return { ok: true };
 }
 
+/** Quick center assignment straight from the room card (multi-center mode). */
+export async function setRoomCenter(roomId: string, centerId: string | null): Promise<ActionResult> {
+  await requireAdmin();
+  if (centerId) {
+    const [c] = await db.select().from(t.centers).where(eq(t.centers.id, centerId));
+    if (!c) return { error: "המרכז לא נמצא" };
+  }
+  await db.update(t.rooms).set({ centerId }).where(eq(t.rooms.id, roomId));
+  revalidatePath("/admin/rooms");
+  revalidatePath("/admin");
+  revalidatePath("/board");
+  return { ok: true };
+}
+
 export async function setRoomActive(roomId: string, isActive: boolean): Promise<ActionResult> {
   await requireAdmin();
   await db.update(t.rooms).set({ isActive }).where(eq(t.rooms.id, roomId));
