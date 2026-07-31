@@ -28,6 +28,12 @@ export default async function SettingsPage() {
   const closures = await listClosures();
   const bounds = { dayStartMin: settings.dayStartMin, dayEndMin: settings.dayEndMin };
 
+  const [rawSettings] = await db.select({ githubToken: t.clinicSettings.githubToken }).from(t.clinicSettings).limit(1);
+  const ghOwner = process.env.VERCEL_GIT_REPO_OWNER;
+  const ghRepo = process.env.VERCEL_GIT_REPO_SLUG;
+  const actionsUrl =
+    ghOwner && ghRepo ? `https://github.com/${ghOwner}/${ghRepo}/actions/workflows/update.yml` : null;
+
   const centerRows = await db.select().from(t.centers).orderBy(t.centers.sortOrder);
   const allRooms = await db.select({ centerId: t.rooms.centerId }).from(t.rooms).where(eq(t.rooms.isActive, true));
   const centers = centerRows.map((c) => ({
@@ -52,6 +58,8 @@ export default async function SettingsPage() {
         updateSetupUrl={updateSetupUrl()}
         multiCenter={settings.multiCenter}
         centers={centers}
+        hasGithubToken={!!rawSettings?.githubToken}
+        actionsUrl={actionsUrl}
       />
       <div className="mx-auto max-w-md space-y-4">
         <ClosuresManager closures={closures} today={todayIL()} bounds={bounds} />

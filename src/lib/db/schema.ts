@@ -106,6 +106,9 @@ export const clinicSettings = pgTable("clinic_settings", {
   setupComplete: boolean("setup_complete").notNull().default(false),
   // multi-site mode: rooms are grouped into centers, boards get a center switcher
   multiCenter: boolean("multi_center").notNull().default(false),
+  // GitHub fine-grained token (Actions: write on the clinic's repo) for the
+  // in-app "עדכון עכשיו" button; encrypted with BETTER_AUTH_SECRET
+  githubToken: text("github_token"),
 });
 
 // clinic sites/branches — only meaningful when clinicSettings.multiCenter is on

@@ -9,7 +9,7 @@
  * once, in a dismissible "מה חדש" dialog.
  */
 
-export const APP_VERSION = "1.1.2";
+export const APP_VERSION = "1.2.0";
 
 export type ChangelogEntry = {
   version: string;
@@ -20,6 +20,14 @@ export type ChangelogEntry = {
 };
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.2.0",
+    date: "31/07/2026",
+    notes: [
+      "אשף ההגדרה כולל כעת שלב \"מרכזים\": מרפאה עם כמה סניפים יכולה להגדיר מרכזים ולשייך חדרים כבר בהתקנה (וכרגיל — הכול ניתן לשינוי בהגדרות)",
+      "כרטיס חדש בהגדרות — \"גרסה ועדכונים\": בדיקת עדכונים בלחיצה, ואם יש גרסה חדשה — עדכון מיידי מתוך המערכת (עם טוקן, רשות) או קישור ישיר להפעלה ב-GitHub",
+    ],
+  },
   {
     version: "1.1.2",
     date: "31/07/2026",

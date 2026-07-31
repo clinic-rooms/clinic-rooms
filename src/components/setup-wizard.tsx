@@ -19,11 +19,13 @@ import {
   Maximize2,
   Droplets,
   Layers,
+  MapPin,
+  Trash2,
 } from "lucide-react";
 import { Button, Card, Input, Label, Select, Badge, Spinner } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { DAY_NAMES, SLOT_MIN, fmtMin, validateDayBounds } from "@/lib/schedule/slots";
-import { updateSettings, setAnthropicKey } from "@/actions/admin-settings";
+import { updateSettings, setAnthropicKey, setMultiCenter, createCenter, deleteCenter } from "@/actions/admin-settings";
 import { upsertRoom, setAvailabilityWindows } from "@/actions/admin-rooms";
 import { createStaffUser, updateStaffUser } from "@/actions/admin-users";
 import { completeSetup } from "@/actions/setup";
@@ -37,6 +39,7 @@ const STEPS = [
   { icon: Building2, title: "שם המרפאה" },
   { icon: CalendarDays, title: "ימי פעילות" },
   { icon: Clock, title: "שעות פעילות" },
+  { icon: MapPin, title: "מרכזים (רשות)" },
   { icon: DoorOpen, title: "חדרים" },
   { icon: Users, title: "אנשי צוות" },
   { icon: Sparkles, title: "עוזר חכם (רשות)" },
@@ -44,7 +47,8 @@ const STEPS = [
   { icon: PartyPopper, title: "סיום" },
 ] as const;
 
-type AddedRoom = { name: string; hasWindow: boolean; hasSink: boolean; isLarge: boolean; isGroupRoom: boolean; isPool: boolean };
+type AddedRoom = { name: string; hasWindow: boolean; hasSink: boolean; isLarge: boolean; isGroupRoom: boolean; isPool: boolean; centerName?: string };
+type AddedCenter = { id: string; name: string };
 type AddedStaff = { name: string; username: string; tempPassword: string };
 
 export function SetupWizard({
@@ -68,9 +72,15 @@ export function SetupWizard({
   const [dayEndMin, setDayEndMin] = useState(initial.dayEndMin);
   const boundsErr = validateDayBounds(dayStartMin, dayEndMin);
 
+  // multi-center (optional)
+  const [multiCenterOn, setMultiCenterOn] = useState(false);
+  const [centers, setCenters] = useState<AddedCenter[]>([]);
+  const [centerName, setCenterName] = useState("");
+
   // rooms
   const [rooms, setRooms] = useState<AddedRoom[]>([]);
   const [roomName, setRoomName] = useState("");
+  const [roomCenterId, setRoomCenterId] = useState("");
   const [roomWindow, setRoomWindow] = useState(false);
   const [roomSink, setRoomSink] = useState(false);
   const [roomLarge, setRoomLarge] = useState(false);
@@ -129,6 +139,44 @@ export function SetupWizard({
     });
   }
 
+  function addCenter() {
+    const name = centerName.trim();
+    if (!name) return;
+    startTransition(async () => {
+      const res = await createCenter(name);
+      if ("error" in res && res.error) {
+        toast.error(res.error);
+        return;
+      }
+      if ("id" in res && res.id) {
+        setCenters((prev) => [...prev, { id: res.id!, name }]);
+        setCenterName("");
+        toast.success(`${name} נוסף`);
+      }
+    });
+  }
+
+  function removeCenter(c: AddedCenter) {
+    startTransition(async () => {
+      const res = await deleteCenter(c.id);
+      if (res.error) toast.error(res.error);
+      else setCenters((prev) => prev.filter((x) => x.id !== c.id));
+    });
+  }
+
+  /** Persist the multi-center choice and move on (off = plain single clinic). */
+  function saveCentersAnd(next: number) {
+    startTransition(async () => {
+      const enabled = multiCenterOn && centers.length > 0;
+      const res = await setMultiCenter(enabled);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      setStep(next);
+    });
+  }
+
   function addRoom() {
     const name = roomName.trim();
     if (!name) return;
@@ -140,6 +188,7 @@ export function SetupWizard({
         isLarge: roomLarge,
         isGroupRoom: roomGroup,
         isPool: roomExternal,
+        centerId: multiCenterOn && roomCenterId ? roomCenterId : undefined,
       });
       if ("error" in res && res.error) {
         toast.error(res.error);
@@ -158,7 +207,18 @@ export function SetupWizard({
           })),
         });
       }
-      setRooms((prev) => [...prev, { name, hasWindow: roomWindow, hasSink: roomSink, isLarge: roomLarge, isGroupRoom: roomGroup, isPool: roomExternal }]);
+      setRooms((prev) => [
+        ...prev,
+        {
+          name,
+          hasWindow: roomWindow,
+          hasSink: roomSink,
+          isLarge: roomLarge,
+          isGroupRoom: roomGroup,
+          isPool: roomExternal,
+          centerName: multiCenterOn && roomCenterId ? centers.find((c) => c.id === roomCenterId)?.name : undefined,
+        },
+      ]);
       setRoomName("");
       setRoomWindow(false);
       setRoomSink(false);
@@ -400,6 +460,77 @@ export function SetupWizard({
         {step === 4 && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
+              המרפאה פועלת בכמה סניפים/מרכזים? אפשר להגדיר זאת כבר עכשיו: כל חדר
+              ישויך למרכז, הלוחות יקבלו מעבר נוח בין המרכזים, ובהזמנת חדר אפשר
+              יהיה לסנן לפי מרכז. <b>מרפאה במקום אחד? פשוט המשיכו הלאה.</b>
+            </p>
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={multiCenterOn}
+                onChange={(e) => setMultiCenterOn(e.target.checked)}
+                className="h-4 w-4 shrink-0 accent-[var(--primary)]"
+              />
+              <span>המרפאה שלנו פועלת <b>בכמה מרכזים</b></span>
+            </label>
+            {multiCenterOn && (
+              <div className="rounded-xl border border-border p-3 space-y-2">
+                <Label>שמות המרכזים</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={centerName}
+                    onChange={(e) => setCenterName(e.target.value)}
+                    maxLength={40}
+                    placeholder="למשל: סניף מרכז"
+                    onKeyDown={(e) => e.key === "Enter" && addCenter()}
+                  />
+                  <Button size="sm" variant="secondary" disabled={pending || !centerName.trim()} onClick={addCenter}>
+                    <Plus size={14} />
+                    הוספה
+                  </Button>
+                </div>
+                {centers.length > 0 && (
+                  <ul className="space-y-1">
+                    {centers.map((c) => (
+                      <li key={c.id} className="flex items-center justify-between rounded-lg bg-muted/50 px-2.5 py-1.5 text-sm">
+                        <span className="flex items-center gap-2">
+                          <MapPin size={14} className="text-primary" />
+                          <span className="font-medium">{c.name}</span>
+                        </span>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" disabled={pending} onClick={() => removeCenter(c)} aria-label={`מחיקת ${c.name}`}>
+                          <Trash2 size={13} className="text-destructive" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {centers.length === 0 && (
+                  <p className="text-xs text-muted-foreground">הוסיפו לפחות מרכז אחד, או בטלו את הסימון למעלה.</p>
+                )}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              אפשר להפעיל/לכבות את המצב הרב־מרכזי ולנהל מרכזים בכל שלב:
+              ניהול ← הגדרות ← כרטיס «מרפאה רב־מרכזית».
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep(3)}>
+                חזרה
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={pending || (multiCenterOn && centers.length === 0)}
+                onClick={() => saveCentersAnd(5)}
+              >
+                {pending ? <Spinner /> : multiCenterOn ? "שמירה והמשך" : "המשך — מרפאה במקום אחד"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === 5 && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
               הוסיפו את חדרי הטיפול. כל חדר ייפתח אוטומטית בכל ימי הפעילות ובכל שעות הפעילות —
               אפשר לדייק חלונות זמינות אחר כך במסך ניהול החדרים.
             </p>
@@ -434,6 +565,17 @@ export function SetupWizard({
                   <Layers size={13} className="text-muted-foreground" /> חדר חיצוני
                 </label>
               </div>
+              {multiCenterOn && centers.length > 0 && (
+                <div className="mt-2">
+                  <Label>מרכז</Label>
+                  <Select value={roomCenterId} onChange={(e) => setRoomCenterId(e.target.value)}>
+                    <option value="">כל המרכזים (ללא שיוך)</option>
+                    {centers.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </Select>
+                </div>
+              )}
               <Button size="sm" className="mt-3 w-full" variant="secondary" disabled={pending || !roomName.trim()} onClick={addRoom}>
                 <Plus size={14} />
                 הוספת החדר
@@ -445,6 +587,7 @@ export function SetupWizard({
                   <li key={i} className="flex items-center gap-2 rounded-lg bg-muted/50 px-2.5 py-1.5 text-sm">
                     <DoorOpen size={14} className="text-primary" />
                     <span className="font-medium">{r.name}</span>
+                    {r.centerName && <Badge variant="outline">{r.centerName}</Badge>}
                     {r.isGroupRoom && <Badge>קבוצות</Badge>}
                     {r.isPool && <Badge variant="outline">חיצוני</Badge>}
                   </li>
@@ -452,17 +595,17 @@ export function SetupWizard({
               </ul>
             )}
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(3)}>
+              <Button variant="outline" onClick={() => setStep(4)}>
                 חזרה
               </Button>
-              <Button className="flex-1" disabled={pending} onClick={() => setStep(5)}>
+              <Button className="flex-1" disabled={pending} onClick={() => setStep(6)}>
                 {rooms.length > 0 ? "המשך" : "דילוג — אוסיף אחר כך"}
               </Button>
             </div>
           </div>
         )}
 
-        {step === 5 && (
+        {step === 6 && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               הוסיפו את אנשי הצוות. לכל אחד/ת נקבעים שם משתמש וסיסמה זמנית — מסרו להם את
@@ -511,17 +654,17 @@ export function SetupWizard({
               </div>
             )}
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(4)}>
+              <Button variant="outline" onClick={() => setStep(5)}>
                 חזרה
               </Button>
-              <Button className="flex-1" disabled={pending} onClick={() => setStep(6)}>
+              <Button className="flex-1" disabled={pending} onClick={() => setStep(7)}>
                 {staff.length > 0 ? "המשך" : "דילוג — אוסיף אחר כך"}
               </Button>
             </div>
           </div>
         )}
 
-        {step === 6 && (
+        {step === 7 && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               המערכת כוללת עוזר חכם לניהול (צ'אט שמכיר את הלוח ומציע שיבוצים)
@@ -551,21 +694,21 @@ export function SetupWizard({
               </>
             )}
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(5)}>
+              <Button variant="outline" onClick={() => setStep(6)}>
                 חזרה
               </Button>
               {aiKeySaved ? (
-                <Button className="flex-1" onClick={() => setStep(7)}>המשך</Button>
+                <Button className="flex-1" onClick={() => setStep(8)}>המשך</Button>
               ) : (
                 <>
                   <Button
                     className="flex-1"
                     disabled={pending || !aiKey.trim().startsWith("sk-ant-")}
-                    onClick={() => saveAiKeyAnd(7)}
+                    onClick={() => saveAiKeyAnd(8)}
                   >
                     {pending ? <Spinner /> : "שמירה והמשך"}
                   </Button>
-                  <Button variant="outline" className="flex-1" disabled={pending} onClick={() => setStep(7)}>
+                  <Button variant="outline" className="flex-1" disabled={pending} onClick={() => setStep(8)}>
                     דילוג — אולי אחר כך
                   </Button>
                 </>
@@ -574,7 +717,7 @@ export function SetupWizard({
           </div>
         )}
 
-        {step === 7 && (
+        {step === 8 && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               עדכנו את חשבון הניהול שלכם — השם שיוצג בלוחות ושם המשתמש להתחברות.
@@ -601,17 +744,17 @@ export function SetupWizard({
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(6)}>
+              <Button variant="outline" onClick={() => setStep(7)}>
                 חזרה
               </Button>
-              <Button className="flex-1" disabled={pending || adminName.trim().length < 2 || adminUsername.trim().length < 2} onClick={() => saveAdminAnd(8)}>
+              <Button className="flex-1" disabled={pending || adminName.trim().length < 2 || adminUsername.trim().length < 2} onClick={() => saveAdminAnd(9)}>
                 {pending ? <Spinner /> : "שמירה והמשך"}
               </Button>
             </div>
           </div>
         )}
 
-        {step === 8 && (
+        {step === 9 && (
           <div className="space-y-3">
             <p className="text-sm">
               הכול מוכן! סיכום ההגדרה:
@@ -620,6 +763,9 @@ export function SetupWizard({
               <li>🏥 <b>{clinicName}</b></li>
               <li>📅 ימי פעילות: {activeDays.map((d) => DAY_NAMES[d]).join(", ")}</li>
               <li>🕐 שעות: {fmtMin(dayStartMin)}–{fmtMin(dayEndMin)}</li>
+              {multiCenterOn && centers.length > 0 && (
+                <li>📍 מרכזים: {centers.map((c) => c.name).join(", ")}</li>
+              )}
               <li>🚪 חדרים: {rooms.length > 0 ? rooms.map((r) => r.name).join(", ") : "יתווספו אחר כך"}</li>
               <li>👥 צוות: {staff.length > 0 ? `${staff.length} נוספו` : "יתווספו אחר כך"}</li>
               <li>🤖 עוזר חכם: {aiKeySaved ? "פעיל" : "לא הוגדר (אפשר להוסיף בהגדרות)"}</li>
@@ -650,7 +796,7 @@ export function SetupWizard({
               את כל ההגדרות אפשר לשנות בכל רגע במסכי הניהול. בהצלחה!
             </p>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(7)}>
+              <Button variant="outline" onClick={() => setStep(8)}>
                 חזרה
               </Button>
               <Button className="flex-1" disabled={pending} onClick={finish}>

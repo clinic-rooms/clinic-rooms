@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Link2, Copy, Check, Shield, ShieldCheck, Sparkles, RefreshCw, Building2, Plus, Trash2 } from "lucide-react";
+import { Link2, Copy, Check, Shield, ShieldCheck, Sparkles, RefreshCw, Building2, Plus, Trash2, Download, KeyRound } from "lucide-react";
 import { Button, Card, Input, Label, Avatar, Badge, Select } from "@/components/ui";
 import { DAY_NAMES, SLOT_MIN, fmtMin, validateDayBounds } from "@/lib/schedule/slots";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,8 @@ import {
   deleteCenter,
 } from "@/actions/admin-settings";
 import { updateStaffUser } from "@/actions/admin-users";
+import { checkForUpdates, triggerUpdate, setGithubToken } from "@/actions/updates";
+import { APP_VERSION } from "@/lib/version";
 
 type StaffLite = { id: string; name: string; role: string; color: string; pattern: string };
 export type CenterLite = { id: string; name: string; roomCount: number };
@@ -39,6 +41,8 @@ export function SettingsScreen({
   updateSetupUrl = null,
   multiCenter: initialMultiCenter = false,
   centers = [],
+  hasGithubToken = false,
+  actionsUrl = null,
 }: {
   clinicName: string;
   activeDays: number[];
@@ -53,6 +57,9 @@ export function SettingsScreen({
   updateSetupUrl?: string | null;
   multiCenter?: boolean;
   centers?: CenterLite[];
+  hasGithubToken?: boolean;
+  /** the clinic repo's Actions page for the update workflow (null off-Vercel) */
+  actionsUrl?: string | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -400,7 +407,188 @@ export function SettingsScreen({
           </p>
         </Card>
       )}
+
+      <UpdateCheckCard hasToken={hasGithubToken} actionsUrl={actionsUrl} />
     </div>
+  );
+}
+
+/** Installed-version display + on-demand update check + one-click update trigger. */
+function UpdateCheckCard({ hasToken, actionsUrl }: { hasToken: boolean; actionsUrl: string | null }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [check, setCheck] = useState<{ latest: string; updateAvailable: boolean; notes: string[] } | null>(null);
+  const [tokenInput, setTokenInput] = useState("");
+  const [triggered, setTriggered] = useState(false);
+
+  function runCheck() {
+    startTransition(async () => {
+      const res = await checkForUpdates();
+      if ("error" in res) {
+        toast.error(res.error);
+        return;
+      }
+      setCheck(res);
+      if (!res.updateAvailable) toast.success(`אתם בגרסה העדכנית (v${res.latest})`);
+    });
+  }
+
+  function update() {
+    startTransition(async () => {
+      const res = await triggerUpdate();
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      setTriggered(true);
+      toast.success("העדכון הופעל");
+    });
+  }
+
+  function saveToken() {
+    startTransition(async () => {
+      const res = await setGithubToken(tokenInput);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      setTokenInput("");
+      toast.success("הטוקן נשמר — מעכשיו אפשר לעדכן בלחיצה אחת");
+      router.refresh();
+    });
+  }
+
+  function removeToken() {
+    if (!confirm("להסיר את טוקן ה-GitHub? כפתור \"עדכון עכשיו\" יפסיק לעבוד עד שיוזן טוקן חדש.")) return;
+    startTransition(async () => {
+      const res = await setGithubToken(null);
+      if (res.error) toast.error(res.error);
+      else {
+        toast.success("הטוקן הוסר");
+        router.refresh();
+      }
+    });
+  }
+
+  return (
+    <Card className="space-y-3">
+      <div className="flex items-center gap-1.5">
+        <Download size={16} className="text-primary" />
+        <h2 className="font-bold">גרסה ועדכונים</h2>
+      </div>
+      <div className="flex items-center justify-between rounded-xl bg-muted/50 p-2.5 text-sm">
+        <span>
+          גרסה מותקנת: <b dir="ltr">v{APP_VERSION}</b>
+        </span>
+        <Button size="sm" variant="secondary" disabled={pending} onClick={runCheck}>
+          <RefreshCw size={14} />
+          בדיקת עדכונים
+        </Button>
+      </div>
+
+      {check && !check.updateAvailable && (
+        <p className="rounded-xl bg-accent/20 p-2.5 text-sm">אתם בגרסה העדכנית ✔</p>
+      )}
+
+      {check?.updateAvailable && (
+        <div className="space-y-2 rounded-xl border-2 border-primary/40 bg-accent/10 p-3">
+          <p className="text-sm font-bold" >
+            יש גרסה חדשה: <span dir="ltr">v{check.latest}</span>
+          </p>
+          {check.notes.length > 0 && (
+            <ul className="space-y-1 text-sm">
+              {check.notes.map((n, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="text-primary">•</span>
+                  <span>{n}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {triggered ? (
+            <p className="rounded-xl bg-accent/20 p-2.5 text-sm">
+              העדכון הופעל ✔ הגרסה החדשה תעלה תוך כ-2–3 דקות — אין צורך לעשות
+              דבר. בכניסה הבאה יופיע מסך "מה חדש".
+            </p>
+          ) : hasToken ? (
+            <Button className="w-full" disabled={pending} onClick={update}>
+              <Download size={15} />
+              עדכון עכשיו
+            </Button>
+          ) : actionsUrl ? (
+            <div className="space-y-2">
+              <a href={actionsUrl} target="_blank" rel="noopener noreferrer">
+                <Button variant="secondary" className="w-full">
+                  הפעלת העדכון ב-GitHub (Run workflow)
+                </Button>
+              </a>
+              <p className="text-xs text-muted-foreground">
+                בעמוד שנפתח: <b>Run workflow</b> ← <b>Run workflow</b> (הכפתור הירוק).
+                העדכון ממילא יגיע אוטומטית בלילה — הכפתור רק מקדים אותו.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              בהתקנה מקומית מעדכנים עם <span dir="ltr">git pull</span> ופריסה מחדש.
+            </p>
+          )}
+        </div>
+      )}
+
+      {actionsUrl && !hasToken && (
+        <details className="rounded-xl border border-border p-3">
+          <summary className="flex cursor-pointer items-center gap-1.5 text-sm font-medium">
+            <KeyRound size={14} className="text-primary" />
+            רוצים כפתור "עדכון עכשיו" מתוך המערכת? (הגדרה חד-פעמית, רשות)
+          </summary>
+          <div className="mt-2 space-y-2 text-xs text-muted-foreground">
+            <p>
+              כדי שהמערכת תוכל להפעיל את העדכון בעצמה, נדרש "מפתח" (טוקן) מ-GitHub
+              עם הרשאה אחת בלבד, על מאגר המרפאה בלבד:
+            </p>
+            <ol className="list-decimal space-y-1 ps-5">
+              <li>
+                היכנסו ל-GitHub (חשבון המרפאה) ←{" "}
+                <a
+                  className="underline"
+                  href="https://github.com/settings/personal-access-tokens/new"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  יצירת Fine-grained token
+                </a>
+              </li>
+              <li>Repository access ← Only select repositories ← בחרו את מאגר המרפאה</li>
+              <li>Permissions ← Actions ← <b>Read and write</b> (ותו לא)</li>
+              <li>Generate token, העתיקו והדביקו כאן:</li>
+            </ol>
+            <div className="flex gap-2">
+              <Input
+                dir="ltr"
+                value={tokenInput}
+                onChange={(e) => setTokenInput(e.target.value)}
+                placeholder="github_pat_..."
+                className="text-xs"
+              />
+              <Button size="sm" disabled={pending || !tokenInput.trim()} onClick={saveToken}>
+                שמירה
+              </Button>
+            </div>
+            <p>הטוקן נשמר מוצפן ולעולם אינו מוצג. בלעדיו הכול עובד — פשוט דרך GitHub.</p>
+          </div>
+        </details>
+      )}
+
+      {hasToken && (
+        <div className="flex items-center justify-between rounded-xl bg-muted/50 p-2.5 text-xs">
+          <span>טוקן GitHub לעדכון בלחיצה מוגדר ושמור מוצפן ✔</span>
+          <Button size="sm" variant="ghost" disabled={pending} onClick={removeToken}>
+            הסרת הטוקן
+          </Button>
+        </div>
+      )}
+    </Card>
   );
 }
 
