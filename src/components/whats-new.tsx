@@ -10,6 +10,10 @@ import type { ChangelogEntry } from "@/lib/version";
  * After an automatic update: a one-time dialog listing what changed.
  * silent=true (fresh users) just records the version without showing anything.
  */
+// localStorage backstop: the server record is authoritative, but a lost write
+// (or a page prefetched before the write landed) must not re-show the dialog
+const SEEN_KEY = "whatsnew-seen";
+
 export function WhatsNew({
   version,
   entries,
@@ -19,16 +23,29 @@ export function WhatsNew({
   entries: ChangelogEntry[];
   silent: boolean;
 }) {
-  const [open, setOpen] = useState(!silent);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (silent) void markVersionSeen(version);
+    let seenHere: string | null = null;
+    try {
+      seenHere = localStorage.getItem(SEEN_KEY);
+    } catch {}
+    if (silent || seenHere === version) {
+      // already dismissed on this device (or fresh user) — quietly heal the
+      // server record; the gate stops rendering us once it lands
+      void markVersionSeen(version);
+      return;
+    }
+    setOpen(true);
   }, [silent, version]);
 
-  if (silent || !open) return null;
+  if (!open) return null;
 
   function dismiss() {
     setOpen(false);
+    try {
+      localStorage.setItem(SEEN_KEY, version);
+    } catch {}
     void markVersionSeen(version);
   }
 

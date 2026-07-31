@@ -9,7 +9,7 @@
  * once, in a dismissible "מה חדש" dialog.
  */
 
-export const APP_VERSION = "1.1.0";
+export const APP_VERSION = "1.1.1";
 
 export type ChangelogEntry = {
   version: string;
@@ -20,6 +20,13 @@ export type ChangelogEntry = {
 };
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.1.1",
+    date: "31/07/2026",
+    notes: [
+      "תוקן: הודעת \"מה חדש\" חזרה והופיעה שוב אחרי סגירה — כעת היא מוצגת פעם אחת בלבד",
+    ],
+  },
   {
     version: "1.1.0",
     date: "31/07/2026",
