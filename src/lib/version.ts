@@ -9,7 +9,7 @@
  * once, in a dismissible "מה חדש" dialog.
  */
 
-export const APP_VERSION = "1.2.0";
+export const APP_VERSION = "1.2.1";
 
 export type ChangelogEntry = {
   version: string;
@@ -20,6 +20,13 @@ export type ChangelogEntry = {
 };
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.2.1",
+    date: "01/08/2026",
+    notes: [
+      "שינוי סדר החדרים בגרירה: גוררים כותרת חדר בלוח הניהול — והסדר החדש נשמר בכל הלוחות, בהדפסה ובקישור הציבורי",
+    ],
+  },
   {
     version: "1.2.0",
     date: "31/07/2026",

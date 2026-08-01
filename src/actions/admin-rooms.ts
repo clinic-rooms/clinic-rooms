@@ -88,6 +88,21 @@ export async function setAvailabilityWindows(
   return { ok: true };
 }
 
+/** Persist a new room order (drag-reorder on the admin board). Ids in display order. */
+export async function reorderRooms(orderedIds: string[]): Promise<ActionResult> {
+  const parsed = z.array(z.string().uuid()).min(1).max(100).safeParse(orderedIds);
+  if (!parsed.success) return { error: "נתונים לא תקינים" };
+  await requireAdmin();
+  for (let i = 0; i < parsed.data.length; i++) {
+    await db.update(t.rooms).set({ sortOrder: i }).where(eq(t.rooms.id, parsed.data[i]));
+  }
+  revalidatePath("/admin");
+  revalidatePath("/admin/rooms");
+  revalidatePath("/board");
+  revalidatePath("/");
+  return { ok: true };
+}
+
 /** Quick center assignment straight from the room card (multi-center mode). */
 export async function setRoomCenter(roomId: string, centerId: string | null): Promise<ActionResult> {
   await requireAdmin();

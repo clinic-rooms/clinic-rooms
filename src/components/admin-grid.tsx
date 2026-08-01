@@ -12,6 +12,8 @@ import { fmtDateHe, nowMinutesIL } from "@/lib/dates";
 import { GridCellSheet } from "@/components/grid-cell-sheet";
 import { StaffBookSheet } from "@/components/staff-book-sheet";
 import { setMyPrimaryCenter } from "@/actions/account";
+import { reorderRooms } from "@/actions/admin-rooms";
+import { toast } from "sonner";
 import { Avatar } from "@/components/ui";
 import { BoardSearch } from "@/components/board-search";
 import { cellStyle } from "@/lib/palette";
@@ -110,12 +112,48 @@ export function AdminGrid({
     // remember as this user's default board (fire-and-forget)
     if (rememberCenter) void setMyPrimaryCenter(id === "all" ? null : id);
   };
+
+  // admin drag-reorder of room columns — optimistic order until the server refresh lands
+  const dragId = useRef<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [localOrder, setLocalOrder] = useState<string[] | null>(null);
+  const serverIds = allRooms.map((r) => r.id).join("|");
+  useEffect(() => setLocalOrder(null), [serverIds]);
+  const orderedRooms = useMemo(() => {
+    if (!localOrder) return allRooms;
+    const pos = new Map(localOrder.map((id, i) => [id, i]));
+    return [...allRooms].sort((a, b) => (pos.get(a.id) ?? 0) - (pos.get(b.id) ?? 0));
+  }, [allRooms, localOrder]);
+
+  const dropOn = (targetId: string) => {
+    const from = dragId.current;
+    dragId.current = null;
+    setDragOverId(null);
+    if (!from || from === targetId) return;
+    const ids = orderedRooms.map((r) => r.id);
+    const fromIdx = ids.indexOf(from);
+    const toIdx = ids.indexOf(targetId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    ids.splice(fromIdx, 1);
+    ids.splice(ids.indexOf(targetId) + (fromIdx < toIdx ? 1 : 0), 0, from);
+    setLocalOrder(ids);
+    void reorderRooms(ids).then((res) => {
+      if (res.error) {
+        toast.error(res.error);
+        setLocalOrder(null);
+      } else {
+        toast.success("סדר החדרים עודכן בכל הלוחות");
+        router.refresh();
+      }
+    });
+  };
+
   const rooms = useMemo(
     () =>
       centersOn && centerId !== "all"
-        ? allRooms.filter((r) => !r.centerId || r.centerId === centerId)
-        : allRooms,
-    [allRooms, centersOn, centerId]
+        ? orderedRooms.filter((r) => !r.centerId || r.centerId === centerId)
+        : orderedRooms,
+    [orderedRooms, centersOn, centerId]
   );
   // long-leave ghosts are hidden by default — the room is simply free.
   // Admins can reveal them on demand; the staff board never shows them.
@@ -337,10 +375,56 @@ export function AdminGrid({
                   key={r.id}
                   className={cn(
                     "border-b border-l border-border bg-card p-1.5 font-semibold",
-                    roomWeek && "cursor-pointer hover:bg-accent/40"
+                    roomWeek && "cursor-pointer hover:bg-accent/40",
+                    !readOnly && "cursor-grab active:cursor-grabbing",
+                    dragOverId === r.id && "bg-accent"
                   )}
-                  title={roomWeek ? `${r.name} — תצוגה שבועית` : r.name}
+                  title={
+                    !readOnly
+                      ? `${r.name} — גרירה לשינוי סדר, לחיצה לתצוגה שבועית`
+                      : roomWeek
+                        ? `${r.name} — תצוגה שבועית`
+                        : r.name
+                  }
                   onClick={roomWeek ? () => router.push(`/room/${r.id}?from=${date}&back=${encodeURIComponent(basePath)}`) : undefined}
+                  // admin only: drag the column header to reorder rooms everywhere
+                  draggable={!readOnly}
+                  onDragStart={
+                    !readOnly
+                      ? (e) => {
+                          dragId.current = r.id;
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", r.id);
+                        }
+                      : undefined
+                  }
+                  onDragOver={
+                    !readOnly
+                      ? (e) => {
+                          if (dragId.current && dragId.current !== r.id) {
+                            e.preventDefault();
+                            setDragOverId(r.id);
+                          }
+                        }
+                      : undefined
+                  }
+                  onDragLeave={!readOnly ? () => setDragOverId((cur) => (cur === r.id ? null : cur)) : undefined}
+                  onDrop={
+                    !readOnly
+                      ? (e) => {
+                          e.preventDefault();
+                          dropOn(r.id);
+                        }
+                      : undefined
+                  }
+                  onDragEnd={
+                    !readOnly
+                      ? () => {
+                          dragId.current = null;
+                          setDragOverId(null);
+                        }
+                      : undefined
+                  }
                 >
                   <div className="flex items-center justify-center gap-1">
                     <span className={cn("truncate", roomWeek && "underline decoration-dotted underline-offset-2")}>{r.name}</span>
