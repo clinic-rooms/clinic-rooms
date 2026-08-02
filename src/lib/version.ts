@@ -9,7 +9,7 @@
  * once, in a dismissible "מה חדש" dialog.
  */
 
-export const APP_VERSION = "1.2.1";
+export const APP_VERSION = "1.2.2";
 
 export type ChangelogEntry = {
   version: string;
@@ -20,6 +20,13 @@ export type ChangelogEntry = {
 };
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.2.2",
+    date: "02/08/2026",
+    notes: [
+      "שיבוץ כפול (שני אנשי צוות באותו חדר) אפשרי כעת גם כשיבוץ קבוע שחוזר כל שבוע, לא רק ליום בודד — כולל הסרה וביטול",
+    ],
+  },
   {
     version: "1.2.1",
     date: "01/08/2026",

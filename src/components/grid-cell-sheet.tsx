@@ -315,6 +315,7 @@ function OccupiedView({
   );
   const [pairStart, setPairStart] = useState(clickedMin);
   const [pairEnd, setPairEnd] = useState(Math.min(clickedMin + 60, bounds.dayEndMin));
+  const [pairRecurring, setPairRecurring] = useState(false);
 
   // one-time partial vacate
   const [vacStart, setVacStart] = useState(clickedMin);
@@ -356,6 +357,22 @@ function OccupiedView({
               variant="ghost"
               disabled={pending}
               onClick={() => run(() => cancelBooking(cell.second!.refId), () => () => restoreBooking(cell.second!.refId))}
+            >
+              הסרה
+            </Button>
+          )}
+          {cell.second.source === "fixed" && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={pending}
+              title="סיום השיבוץ הקבוע הכפול מהיום"
+              onClick={() =>
+                run(
+                  () => endAssignment(cell.second!.refId, date),
+                  (res) => () => reopenAssignment(cell.second!.refId, (res.prevEffectiveTo as string | null) ?? null)
+                )
+              }
             >
               הסרה
             </Button>
@@ -636,6 +653,19 @@ function OccupiedView({
                 <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                 שיבוץ כפול: שני אנשי צוות יופיעו יחד בחדר בשעות החופפות. אפשרי רק לניהול.
               </p>
+              <div className="flex gap-2">
+                <Button size="sm" variant={!pairRecurring ? "primary" : "outline"} onClick={() => setPairRecurring(false)}>
+                  ליום זה בלבד
+                </Button>
+                <Button size="sm" variant={pairRecurring ? "primary" : "outline"} onClick={() => setPairRecurring(true)}>
+                  קבוע (כל {DAY_NAMES[dowOf(date)]})
+                </Button>
+              </div>
+              {pairRecurring && (
+                <p className="text-xs text-muted-foreground">
+                  ייווצר שיבוץ קבוע נוסף באותו חדר — שני אנשי הצוות יופיעו יחד בכל יום {DAY_NAMES[dowOf(date)]} החל מ־{date}.
+                </p>
+              )}
               <div>
                 <Label>מטפל/ת נוסף/ת</Label>
                 <Select value={pairUserId} onChange={(e) => setPairUserId(e.target.value)}>
@@ -656,12 +686,27 @@ function OccupiedView({
                 onClick={() =>
                   run(
                     () =>
-                      adminCreateBooking({ userId: pairUserId, roomId: room.id, date, startMin: pairStart, endMin: pairEnd, kind: "regular" }),
-                    (res) => (res.bookingId ? () => cancelBooking(String(res.bookingId)) : null)
+                      pairRecurring
+                        ? upsertAssignment({
+                            userId: pairUserId,
+                            roomId: room.id,
+                            dayOfWeek: dowOf(date),
+                            startMin: pairStart,
+                            endMin: pairEnd,
+                            effectiveFrom: date,
+                            kind: "regular",
+                          })
+                        : adminCreateBooking({ userId: pairUserId, roomId: room.id, date, startMin: pairStart, endMin: pairEnd, kind: "regular" }),
+                    (res) =>
+                      res.bookingId
+                        ? () => cancelBooking(String(res.bookingId))
+                        : res.assignmentId
+                          ? () => deleteAssignment(String(res.assignmentId))
+                          : null
                   )
                 }
               >
-                שיבוץ כפול לשעה זו
+                {pairRecurring ? "שיבוץ כפול קבוע" : "שיבוץ כפול לשעה זו"}
               </Button>
             </div>
           )}
